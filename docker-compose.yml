@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    container_name: DIMF-POSTGRES-DB
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: dimf
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user -d dimf']
+      interval: 10s
+      retries: 5
+
+  app:
+    build: ./app
+    container_name: DIMF-GUI-APP
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix # For GUI rendering
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=dimf
+      - DB_USER=user
+      - DB_PASS=password
+      - DISPLAY=host.docker.internal:0.0
+    stdin_open: true
+    tty: true
