@@ -1,6 +1,7 @@
 # Defense Intelligence Memorial Foundation (DIMF) Auto Poster
 
-A Java Swing GUI application for managing memorial posts and social media automation, backed by a PostgreSQL database. This project runs fully inside Docker and supports **live reloading** of GUI code on file change (hot reload).
+A Java Swing GUI application for managing memorial posts and social media automation, backed by a PostgreSQL database.  
+This project uses Docker to host the PostgreSQL database. The Java GUI application runs directly on your local system and connects to the database over `localhost`.
 
 ---
 
@@ -9,28 +10,16 @@ A Java Swing GUI application for managing memorial posts and social media automa
 ### 1. Install Docker Desktop
 
 - Download from: https://www.docker.com/products/docker-desktop/
-- Enable "Use the WSL 2 based engine" during installation
+- Enable "Use the WSL 2 based engine" during installation (on Windows)
 - Ensure Docker Desktop is running
-
----
-
-### 2. Install VcXsrv (X Server for Windows GUI)
-
-- One-time installation. Only install if using Windows OS.
-- Download from: https://sourceforge.net/projects/vcxsrv/files/latest/download
-- After installing, launch `XLaunch` and choose:
-  1. **Multiple Windows**
-  2. **Start no client**
-  3. **Disable access control** (important)
-  4. Finish and leave VcXsrv running in the background
-
-This allows the Docker container to display GUI applications on your Windows desktop.
 
 ---
 
 ## Running the Project
 
-After completing the steps above:
+### 1. Start the PostgreSQL database container
+
+From the project root directory, run:
 
 ```bash
 docker-compose up --build
@@ -39,34 +28,32 @@ docker-compose up --build
 This command:
 
 - Builds and starts the PostgreSQL database container
-- Starts the Java Swing application container
-- Launches the GUI window titled **DIMF AutoPoster** on your Windows desktop
+- Makes the database available on `localhost:5432`
 
 ---
 
-## Live Code Reloading
+### 2. Run the Java Swing GUI Locally
 
-Once the app is running:
+Open a terminal in the project directory and run:
 
-- Make changes to any `.java` files inside the `app/` directory
-- Save your changes
-- The container will automatically:
-  - Detect the changes
-  - Recompile the Java source files
-  - Restart the GUI with the updated code
-
-You do not need to rebuild or restart the container manually.
-
-## Troubleshooting:
-
-### 1. Allow Docker to access your Windows display
-
-Open PowerShell or Command Prompt and run:
-
-```powershell
-setx DISPLAY host.docker.internal:0.0
+```bash
+javac -cp "postgresql.jar" Main.java
+java -cp ".;postgresql.jar" Main
 ```
 
-This sets the `DISPLAY` environment variable to route GUI output from the container to your X server (VcXsrv).
+> On Windows, use `;` instead of `:` in the classpath.
+
+Make sure `postgresql.jar` is downloaded and present in the working directory. It should be in the git repo.
 
 ---
+
+## Troubleshooting
+
+If the Java application cannot connect to the database, ensure:
+
+- Docker is running
+- The `db` container is healthy (`docker ps` to check)
+- Your Java app is using the correct JDBC URL:
+  ```
+  jdbc:postgresql://localhost:5432/dimf
+  ```
