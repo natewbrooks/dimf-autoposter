@@ -1,4 +1,4 @@
-package components.sections;
+package sections;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;

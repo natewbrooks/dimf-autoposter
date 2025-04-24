@@ -1,19 +1,18 @@
-version: '3.8'
-
 services:
-  db:
-    image: postgres:16
-    container_name: DIMF-POSTGRES-DB
+  dev-db:
+    image: mysql:8.0
+    container_name: DIMF-MYSQL-DEV-DB
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: dimf
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_DATABASE: nbrooks1db
     ports:
-      - '5432:5432'
+      - '3360:3306'
     volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./dev-db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U user -d dimf']
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
       interval: 10s
       timeout: 5s
       retries: 5

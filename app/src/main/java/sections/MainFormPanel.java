@@ -1,8 +1,7 @@
-package components.sections;
+package sections;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.function.Consumer;
 
 public class MainFormPanel extends JPanel {
     public JTextField nameField;

@@ -1,4 +1,4 @@
-package components.sections;
+package sections;
 
 import javax.swing.*;
 import java.awt.*;
