@@ -1,19 +1,59 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
+from pydantic import BaseModel
 
 router = APIRouter()
+
+class ImageCreate(BaseModel):
+    url: str
+    source: str = ''
 
 @router.get("/")
 def get_images(db: Session = Depends(get_db)):
     return db.execute(text("SELECT * FROM Images")).mappings().all()
 
 @router.post("/")
-def create_image(url: str, source: str = '', db: Session = Depends(get_db)):
-    db.execute(text("INSERT INTO Images (URL, Source) VALUES (:url, :source)"), {"url": url, "source": source})
-    db.commit()
-    return {"status": "Image added"}
+async def create_image(request: Request, db: Session = Depends(get_db)):
+    try:
+        # Get the raw request body
+        body = await request.json()
+        print("Received raw request body:", body)
+        
+        # Extract the URL and source from the request body
+        url = body.get("url", "")
+        source = body.get("source", "")
+        
+        print(f"Extracted URL: {url}")
+        print(f"Extracted source: {source}")
+        
+        if not url:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "URL is required"}
+            )
+        
+        # Insert the record
+        db.execute(
+            text("INSERT INTO Images (URL, Source) VALUES (:url, :source)"), 
+            {"url": url, "source": source}
+        )
+        
+        # Get the last inserted ID
+        result = db.execute(text("SELECT LAST_INSERT_ID()"))
+        image_id = result.scalar_one()
+        
+        db.commit()
+        
+        return {"status": "Image added", "image_id": image_id}
+    except Exception as e:
+        print(f"Error in create_image: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "details": "Error processing image upload"}
+        )
 
 @router.delete("/{image_id}")
 def delete_image(image_id: int, db: Session = Depends(get_db)):

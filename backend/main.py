@@ -83,7 +83,7 @@ app.include_router(
 # Google Search API
 app.include_router(
     google_api.router,
-    prefix="/api/google/search",
+    prefix="/api/google",
     tags=["SerpAPI Implementation"],
 )
 

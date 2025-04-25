@@ -313,7 +313,11 @@ public class PostService {
      * @param postData Post data to save
      * @param callback Callback with success/failure message
      */
+ // In lib/PostService.java - update the savePost method
     public static void savePost(PostData postData, Consumer<SaveResult> callback) {
+        System.out.println("DEBUG - PostService.savePost - Post ID: " + postData.postId);
+        System.out.println("DEBUG - PostService.savePost - Image Paths: " + postData.imagePaths);
+        
         SwingWorker<SaveResult, Void> saveWorker = new SwingWorker<>() {
             @Override
             protected SaveResult doInBackground() {
@@ -358,8 +362,11 @@ public class PostService {
                     }
                     requestObj.put("images", imagesArray);
                     
+                    System.out.println("DEBUG - PostService.savePost - JSON payload images: " + imagesArray);
+                    
                     // Convert to JSON string
                     String requestBody = requestObj.toString();
+                    System.out.println("DEBUG - PostService.savePost - Full JSON payload: " + requestBody);
 
                     try (OutputStream os = conn.getOutputStream()) {
                         byte[] input = requestBody.getBytes("utf-8");
@@ -367,6 +374,7 @@ public class PostService {
                     }
 
                     int responseCode = conn.getResponseCode();
+                    System.out.println("DEBUG - PostService.savePost - Response code: " + responseCode);
                     
                     if (responseCode >= 200 && responseCode < 300) {
                         // Success
@@ -379,13 +387,26 @@ public class PostService {
                         }
                         in.close();
                         
-                        JSONObject responseJson = new JSONObject(responseBuilder.toString());
-                        int newPostId = responseJson.optInt("PostID", -1);
+                        String response = responseBuilder.toString();
+                        System.out.println("DEBUG - PostService.savePost - Response: " + response);
+                        
+                        JSONObject responseJson = new JSONObject(response);
+                        
+                        // IMPORTANT FIX: Extract post_id from response correctly
+                        int newPostId = -1;
+                        if (responseJson.has("post_id")) {
+                            newPostId = responseJson.getInt("post_id");
+                        } else if (isUpdate) {
+                            // If updating, use the existing post ID
+                            newPostId = postData.postId;
+                        }
+                        
+                        System.out.println("DEBUG - PostService.savePost - New Post ID: " + newPostId);
                         
                         SaveResult result = new SaveResult();
                         result.success = true;
                         result.message = isUpdate ? "Post updated successfully" : "Post created successfully";
-                        result.postId = newPostId > 0 ? newPostId : postData.postId;
+                        result.postId = newPostId;
                         
                         return result;
                     } else {
@@ -399,14 +420,18 @@ public class PostService {
                         }
                         errorReader.close();
                         
+                        String error = errorResponse.toString();
+                        System.out.println("DEBUG - PostService.savePost - Error response: " + error);
+                        
                         SaveResult result = new SaveResult();
                         result.success = false;
-                        result.message = "Error: " + responseCode + " - " + errorResponse.toString();
+                        result.message = "Error: " + responseCode + " - " + error;
                         
                         return result;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
+                    System.out.println("DEBUG - PostService.savePost - Exception: " + e.getMessage());
                     
                     SaveResult result = new SaveResult();
                     result.success = false;
@@ -423,6 +448,7 @@ public class PostService {
                     callback.accept(result);
                 } catch (Exception e) {
                     e.printStackTrace();
+                    System.out.println("DEBUG - PostService.savePost - Exception in done: " + e.getMessage());
                     SaveResult result = new SaveResult();
                     result.success = false;
                     result.message = "Error: " + e.getMessage();

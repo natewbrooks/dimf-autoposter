@@ -28,10 +28,13 @@ def create_post(post: PostCreate, db: Session = Depends(get_db)):
             "content": post.content,
             "created_by": post.created_by
         })
+        result = db.execute(text("SELECT LAST_INSERT_ID()"))
+        post_id = result.scalar_one()
         db.commit()
-        return {"status": "Post created"}
+        return {"status": "Post created", "post_id": post_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.put("/{post_id}")
 def update_post(post_id: int, post: PostCreate, db: Session = Depends(get_db)):
@@ -77,16 +80,16 @@ def delete_post(post_id: int, db: Session = Depends(get_db)):
 #         raise HTTPException(status_code=500, detail=f"Error loading platforms: {e}")
     
     
-# @router.get("/{post_id}/images/")
-# def get_post_images(post_id: int, db: Session = Depends(get_db)):
-#     try:
-#         query = """
-#             SELECT i.ImageID, i.URL, i.Source
-#             FROM Images i
-#             JOIN PostImages pi ON i.ImageID = pi.ImageID
-#             WHERE pi.PostID = :post_id
-#         """
-#         result = db.execute(text(query), {"post_id": post_id}).mappings().all()
-#         return result
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Error loading images: {e}")
+@router.get("/{post_id}/images/")
+def get_post_images(post_id: int, db: Session = Depends(get_db)):
+    try:
+        query = """
+            SELECT i.ImageID, i.URL, i.Source
+            FROM Images i
+            JOIN PostImages pi ON i.ImageID = pi.ImageID
+            WHERE pi.PostID = :post_id
+        """
+        result = db.execute(text(query), {"post_id": post_id}).mappings().all()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading images: {e}")

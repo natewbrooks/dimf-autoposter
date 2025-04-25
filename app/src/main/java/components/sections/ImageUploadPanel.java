@@ -1,19 +1,19 @@
 package components.sections;
 
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
-import java.io.File;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.imageio.ImageIO;
 
 import components.layout.WrapLayout;
 
 public class ImageUploadPanel extends JPanel {
     private JPanel imagePreviewPanel;
-    private JButton uploadButton;
+    private JButton addImageButton;
     private Map<String, Component> imageComponents = new HashMap<>();
     private JLabel placeholderLabel;
 
@@ -26,7 +26,6 @@ public class ImageUploadPanel extends JPanel {
         setPreferredSize(new Dimension(100, 200));
 
         // Preview panel as wrapping grid
-
         imagePreviewPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 10, 10));
         imagePreviewPanel.setBackground(Color.WHITE);
 
@@ -36,38 +35,75 @@ public class ImageUploadPanel extends JPanel {
         previewScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         previewScrollPane.setBorder(null);
 
-        // Upload button
+        // Add image button
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        uploadButton = new JButton("Upload Image");
-        buttonPanel.add(uploadButton);
+        addImageButton = new JButton("Add Image URL");
+        buttonPanel.add(addImageButton);
 
         add(previewScrollPane, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.SOUTH);
 
-        uploadButton.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Select Image(s)");
-            fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-            fileChooser.setMultiSelectionEnabled(true);
-            fileChooser.setFileFilter(new FileNameExtensionFilter("Image Files", "jpg", "jpeg", "png", "gif"));
-            fileChooser.setCurrentDirectory(new File(System.getProperty("user.home")));
-
-            int option = fileChooser.showOpenDialog(this);
-            if (option == JFileChooser.APPROVE_OPTION) {
-                removePlaceholder();
-                File[] selectedFiles = fileChooser.getSelectedFiles();
-                for (File file : selectedFiles) {
-                    addImage(file.getAbsolutePath());
-                }
-            }
-        });
+        addImageButton.addActionListener(e -> showAddImageDialog());
 
         addPlaceholder();
     }
 
+    private void showAddImageDialog() {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Add Image URL", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.setSize(400, 140);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel inputPanel = new JPanel(new GridLayout(2, 2, 5, 5));
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JLabel urlLabel = new JLabel("Image URL:");
+        JTextField urlField = new JTextField();
+        
+        JLabel sourceLabel = new JLabel("Source (optional):");
+        JTextField sourceField = new JTextField();
+        
+        inputPanel.add(urlLabel);
+        inputPanel.add(urlField);
+        inputPanel.add(sourceLabel);
+        inputPanel.add(sourceField);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton cancelButton = new JButton("Cancel");
+        JButton addButton = new JButton("Add");
+        
+        cancelButton.addActionListener(e -> dialog.dispose());
+        addButton.addActionListener(e -> {
+            String url = urlField.getText().trim();
+            if (!url.isEmpty()) {
+                try {
+                    // Validate URL by trying to create a URL object
+                    new URL(url);
+                    addImage(url, sourceField.getText().trim());
+                    dialog.dispose();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(dialog, 
+                        "Invalid URL format. Please enter a valid URL.", 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(dialog, 
+                    "Please enter an image URL.", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        buttonPanel.add(cancelButton);
+        buttonPanel.add(addButton);
+        
+        dialog.add(inputPanel, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
+    }
+
     private void addPlaceholder() {
         if (placeholderLabel == null) {
-            placeholderLabel = new JLabel("No images uploaded yet");
+            placeholderLabel = new JLabel("No images added yet");
             placeholderLabel.setForeground(Color.GRAY);
             placeholderLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
             imagePreviewPanel.add(placeholderLabel);
@@ -85,22 +121,41 @@ public class ImageUploadPanel extends JPanel {
         }
     }
 
-    private void addImage(String path) {
-        if (imageComponents.containsKey(path)) return;
+    private void addImage(String url, String source) {
+        if (imageComponents.containsKey(url)) return;
         removePlaceholder();
 
         // Create the image card
         JPanel card = new JPanel(new BorderLayout());
-        card.setPreferredSize(new Dimension(110, 130));
+        card.setPreferredSize(new Dimension(110, 150));
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createLineBorder(Color.GRAY));
 
-        // Load and scale the image
-        ImageIcon icon = new ImageIcon(path);
-        Image scaled = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-        JLabel imgLabel = new JLabel(new ImageIcon(scaled));
-        imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        card.add(imgLabel, BorderLayout.CENTER);
+        try {
+            // Load and scale the image from URL
+            Image image = ImageIO.read(new URL(url));
+            if (image != null) {
+                Image scaled = image.getScaledInstance(100, 100, Image.SCALE_SMOOTH);
+                JLabel imgLabel = new JLabel(new ImageIcon(scaled));
+                imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                card.add(imgLabel, BorderLayout.CENTER);
+            } else {
+                // If image couldn't be loaded
+                JLabel errorLabel = new JLabel("Image load error");
+                errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                card.add(errorLabel, BorderLayout.CENTER);
+            }
+        } catch (Exception e) {
+            // If there was an error loading the image
+            JLabel errorLabel = new JLabel("Image load error");
+            errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            card.add(errorLabel, BorderLayout.CENTER);
+        }
+
+        // URL label
+        JLabel urlLabel = new JLabel("<html><div style='width:100px;text-align:center;'>" + url + "</div></html>");
+        urlLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        card.add(urlLabel, BorderLayout.SOUTH);
 
         // Create delete button
         JButton deleteBtn = new JButton("×");
@@ -112,7 +167,7 @@ public class ImageUploadPanel extends JPanel {
         deleteBtn.setPreferredSize(new Dimension(20, 20));
         deleteBtn.addActionListener(e -> {
             imagePreviewPanel.remove(card);
-            imageComponents.remove(path);
+            imageComponents.remove(url);
             if (imageComponents.isEmpty()) addPlaceholder();
             imagePreviewPanel.revalidate();
             imagePreviewPanel.repaint();
@@ -125,23 +180,22 @@ public class ImageUploadPanel extends JPanel {
         card.add(topBar, BorderLayout.NORTH);
 
         // Add to grid
-        imageComponents.put(path, card);
+        imageComponents.put(url, card);
         imagePreviewPanel.add(card);
         imagePreviewPanel.revalidate();
         imagePreviewPanel.repaint();
     }
 
-
-    public List<String> getUploadedImagePaths() {
+    public List<String> getImageUrls() {
         return new ArrayList<>(imageComponents.keySet());
     }
 
-    public void loadImagesFromPaths(List<String> imagePaths) {
+    public void loadImagesFromUrls(List<String> imageUrls) {
         clearImages();
-        if (imagePaths != null && !imagePaths.isEmpty()) {
+        if (imageUrls != null && !imageUrls.isEmpty()) {
             removePlaceholder();
-            for (String path : imagePaths) {
-                addImage(path);
+            for (String url : imageUrls) {
+                addImage(url, ""); // Source is not available when loading
             }
         } else {
             addPlaceholder();

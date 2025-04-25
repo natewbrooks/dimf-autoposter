@@ -1,14 +1,34 @@
 package components.sections;
 
-import com.github.lgooddatepicker.components.DatePicker;
-import com.github.lgooddatepicker.components.DatePickerSettings;
-import lib.PostService;
-
+import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.util.List;
+import java.util.ArrayList;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+
+import com.github.lgooddatepicker.components.DatePicker;
+import com.github.lgooddatepicker.components.DatePickerSettings;
+
+import lib.PostService;
 
 public class FormPanel extends JPanel {
     // Core form fields
@@ -28,6 +48,8 @@ public class FormPanel extends JPanel {
     private PostService.PostData currentPostData = new PostService.PostData();
     private boolean isGenerating = false;
     private DefaultListModel<String> sidebarModel;
+    
+    private String currentSearchQuery = ""; // Track the current search query
     
     public FormPanel() {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -167,6 +189,13 @@ public class FormPanel extends JPanel {
         aiContentArea.setText("Generating Post...");
         aiContentArea.setEditable(false);
         
+        // Create search query for Google
+        String searchQuery = name + " " + dod;
+        
+        // Check if we need to perform a new image search
+        boolean needNewImageSearch = !searchQuery.equals(currentSearchQuery);
+        currentSearchQuery = searchQuery;
+        
         // Use the service to generate content
         PostService.generatePostContent(name, dod, content -> {
             // Update UI with generated content
@@ -187,9 +216,35 @@ public class FormPanel extends JPanel {
             currentPostData.dateOfDeath = dod;
             currentPostData.content = content;
             
+            // Perform Google Images search if needed
+            if (needNewImageSearch) {
+                performImageSearch(searchQuery);
+            }
+            
             // Force layout update
             revalidate();
             repaint();
+        });
+    }
+
+    // Add this new method to the FormPanel class
+    private void performImageSearch(String query) {
+        lib.ImageService.searchGoogleImages(query, result -> {
+            if (result.success && result.images != null && !result.images.isEmpty()) {
+                // Get the URLs from the images
+                List<String> imageUrls = new ArrayList<>();
+                for (lib.ImageService.ImageData image : result.images) {
+                    imageUrls.add(image.url);
+                }
+                
+                // Load the images into the image uploader
+                imageUploader.loadImagesFromUrls(imageUrls);
+            } else {
+                // Clear any existing images if the search failed
+                imageUploader.clearImages();
+                System.out.println("DEBUG - Image search failed or returned no results: " + 
+                    (result.message != null ? result.message : "No message"));
+            }
         });
     }
 
@@ -205,7 +260,13 @@ public class FormPanel extends JPanel {
             : "";
         currentPostData.content = aiContentArea.getText();
         currentPostData.platformIds = platformSelector.getSelectedPlatformIds();
-        currentPostData.imagePaths = imageUploader.getUploadedImagePaths();
+        
+        // Get image URLs and store them in currentPostData
+        currentPostData.imagePaths = imageUploader.getImageUrls();
+        
+        // DEBUG: Print image paths before saving
+        System.out.println("DEBUG - Before saving post - Image URLs: " + currentPostData.imagePaths);
+        System.out.println("DEBUG - Before saving post - Post ID: " + currentPostData.postId);
         
         // Validate data
         if (currentPostData.name.isEmpty() || currentPostData.dateOfDeath.isEmpty()) {
@@ -217,35 +278,156 @@ public class FormPanel extends JPanel {
         
         // Disable save button while saving
         saveButton.setEnabled(false);
+        saveButton.setText("Saving...");
         
-        // Save using the service
-        PostService.savePost(currentPostData, result -> {
-            // Re-enable save button
-            saveButton.setEnabled(true);
+        // First save the post
+        PostService.savePost(currentPostData, postResult -> {
+            if (!postResult.success) {
+                // Show error message
+                saveButton.setEnabled(true);
+                saveButton.setText("Save Post");
+                JOptionPane.showMessageDialog(this, 
+                    postResult.message, "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
             
-            if (result.success) {
+            // IMPORTANT FIX: Get the post ID and make sure it's valid
+            int postId = postResult.postId;
+            System.out.println("DEBUG - Post saved successfully - Post ID from result: " + postId);
+            
+            // Update current post data with the new post ID
+            currentPostData.postId = postId;
+            
+            System.out.println("DEBUG - After updating currentPostData - Post ID: " + currentPostData.postId);
+            System.out.println("DEBUG - After saving post - Image URLs: " + currentPostData.imagePaths);
+            
+            // If there are no images, we're done
+            if (currentPostData.imagePaths.isEmpty()) {
+                System.out.println("DEBUG - No images to process");
+                saveButton.setEnabled(true);
+                saveButton.setText("Save Post");
+                
                 // Show success message
                 JOptionPane.showMessageDialog(this, 
-                    result.message, "Success", JOptionPane.INFORMATION_MESSAGE);
-                
-                // Update post ID if this was a new post
-                if (currentPostData.postId < 0) {
-                    currentPostData.postId = result.postId;
-                }
+                    postResult.message, "Success", JOptionPane.INFORMATION_MESSAGE);
                 
                 // Refresh sidebar
                 if (sidebarModel != null) {
                     PostService.loadPosts(sidebarModel);
                 }
                 
-                // Only reset form if it was a new post
-                if (currentPostData.postId < 0) {
-                    resetForm();
-                }
-            } else {
-                // Show error message
+                return;
+            }
+            
+            // IMPORTANT FIX: Verify that we have a valid post ID
+            if (postId <= 0) {
+                System.out.println("DEBUG - Invalid post ID: " + postId);
+                saveButton.setEnabled(true);
+                saveButton.setText("Save Post");
+                
                 JOptionPane.showMessageDialog(this, 
-                    result.message, "Error", JOptionPane.ERROR_MESSAGE);
+                    "Post saved but couldn't get a valid ID for image linking. Please try again.", 
+                    "Warning", JOptionPane.WARNING_MESSAGE);
+                    
+                // Refresh sidebar
+                if (sidebarModel != null) {
+                    PostService.loadPosts(sidebarModel);
+                }
+                
+                return;
+            }
+            
+            // Copy the post ID to a final variable for use in lambdas
+            final int finalPostId = postId;
+            System.out.println("DEBUG - Using finalPostId for image processing: " + finalPostId);
+            
+            // Counter for tracking completed image operations
+            final int[] imagesProcessed = {0};
+            final int totalImages = currentPostData.imagePaths.size();
+            final boolean[] hasErrors = {false};
+            
+            System.out.println("DEBUG - Starting to process " + totalImages + " images for post ID: " + finalPostId);
+            
+            // For each image URL, save the image and link it to the post
+            for (String imageUrl : currentPostData.imagePaths) {
+                System.out.println("DEBUG - Processing image URL: " + imageUrl + " for post ID: " + finalPostId);
+                
+                // First save the image
+                lib.ImageService.addImage(imageUrl, "", imageResult -> {
+                    if (imageResult.success) {
+                        // Then link it to the post
+                        int imageId = imageResult.imageId;
+                        System.out.println("DEBUG - Image added successfully - Image ID: " + imageId + " for post ID: " + finalPostId);
+                        
+                        // IMPORTANT: Use finalPostId to ensure correct post ID is used
+                        lib.ImageService.linkImageToPost(finalPostId, imageId, linkResult -> {
+                            synchronized (imagesProcessed) {
+                                imagesProcessed[0]++;
+                                
+                                if (linkResult.success) {
+                                    System.out.println("DEBUG - Image linked successfully - Image ID: " + imageId + ", Post ID: " + finalPostId);
+                                } else {
+                                    System.out.println("DEBUG - Failed to link image - Image ID: " + imageId + ", Post ID: " + finalPostId);
+                                    System.out.println("DEBUG - Error: " + linkResult.message);
+                                    hasErrors[0] = true;
+                                }
+                                
+                                // If all images have been processed, update UI
+                                if (imagesProcessed[0] >= totalImages) {
+                                    System.out.println("DEBUG - All images processed - Total: " + totalImages + ", Errors: " + hasErrors[0]);
+                                    
+                                    SwingUtilities.invokeLater(() -> {
+                                        saveButton.setEnabled(true);
+                                        saveButton.setText("Save Post");
+                                        
+                                        // Show appropriate message
+                                        if (hasErrors[0]) {
+                                            JOptionPane.showMessageDialog(FormPanel.this, 
+                                                "Post saved but some images could not be linked.", 
+                                                "Partial Success", JOptionPane.WARNING_MESSAGE);
+                                        } else {
+                                            JOptionPane.showMessageDialog(FormPanel.this, 
+                                                postResult.message, "Success", JOptionPane.INFORMATION_MESSAGE);
+                                        }
+                                        
+                                        // Refresh sidebar
+                                        if (sidebarModel != null) {
+                                            PostService.loadPosts(sidebarModel);
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        System.out.println("DEBUG - Failed to add image: " + imageUrl);
+                        System.out.println("DEBUG - Error: " + imageResult.message);
+                        
+                        synchronized (imagesProcessed) {
+                            imagesProcessed[0]++;
+                            hasErrors[0] = true;
+                            
+                            // If all images have been processed, update UI
+                            if (imagesProcessed[0] >= totalImages) {
+                                System.out.println("DEBUG - All images processed - Total: " + totalImages + ", Errors: " + hasErrors[0]);
+                                
+                                SwingUtilities.invokeLater(() -> {
+                                    saveButton.setEnabled(true);
+                                    saveButton.setText("Save Post");
+                                    
+                                    // Show appropriate message
+                                    JOptionPane.showMessageDialog(FormPanel.this, 
+                                        "Post saved but some images could not be saved.", 
+                                        "Partial Success", JOptionPane.WARNING_MESSAGE);
+                                    
+                                    // Refresh sidebar
+                                    if (sidebarModel != null) {
+                                        PostService.loadPosts(sidebarModel);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
             }
         });
     }
@@ -291,8 +473,28 @@ public class FormPanel extends JPanel {
             // Set selected platforms
             platformSelector.setSelectedPlatforms(postData.platformIds);
             
-            // Load images
-            imageUploader.loadImagesFromPaths(postData.imagePaths);
+            // If the post has an ID, load images from the API
+            if (postData.postId > 0) {
+                // Load images from API
+                lib.ImageService.getImagesForPost(postData.postId, imageResult -> {
+                    if (imageResult.success && imageResult.images != null) {
+                        // Extract URLs from the result
+                        List<String> imageUrls = new ArrayList<>();
+                        for (lib.ImageService.ImageData image : imageResult.images) {
+                            imageUrls.add(image.url);
+                        }
+                        
+                        // Update the image panel
+                        imageUploader.loadImagesFromUrls(imageUrls);
+                    } else {
+                        // Clear any existing images
+                        imageUploader.clearImages();
+                    }
+                });
+            } else {
+                // For compatibility with older data format
+                imageUploader.loadImagesFromUrls(postData.imagePaths);
+            }
             
             // Show save button
             saveButton.setVisible(true);
