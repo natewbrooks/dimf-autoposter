@@ -23,7 +23,7 @@ public class UserHeaderPanel extends JPanel {
         userBox.add(Box.createHorizontalStrut(6)); // small gap between icon and name
 
         usernameLabel = new JLabel(username);
-        usernameLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        usernameLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         userBox.add(usernameLabel);
 
         // Align to the right

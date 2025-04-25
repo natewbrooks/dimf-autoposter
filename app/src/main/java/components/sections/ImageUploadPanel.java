@@ -41,6 +41,7 @@ public class ImageUploadPanel extends JPanel {
         // Add image button
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         addImageButton = new JButton("Add Image URL");
+        addImageButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         buttonPanel.add(addImageButton);
 
         add(previewScrollPane, BorderLayout.CENTER);
@@ -165,31 +166,32 @@ public class ImageUploadPanel extends JPanel {
         urlLabel.setHorizontalAlignment(SwingConstants.CENTER);
         card.add(urlLabel, BorderLayout.SOUTH);
 
-        // Create delete button
-        JButton deleteBtn = new JButton("×");
+        // Delete button
+        JButton deleteBtn = new JButton("X");
         deleteBtn.setMargin(new Insets(0, 0, 0, 0));
-        deleteBtn.setFont(new Font("Arial", Font.BOLD, 12));
+        deleteBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
         deleteBtn.setForeground(Color.WHITE);
         deleteBtn.setBackground(Color.RED);
+        deleteBtn.setOpaque(true);
+        deleteBtn.setContentAreaFilled(true);
+        deleteBtn.setBorderPainted(false);
         deleteBtn.setFocusPainted(false);
+        deleteBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         deleteBtn.setPreferredSize(new Dimension(20, 20));
+
         deleteBtn.addActionListener(e -> {
-            // Check if we have an image ID and post ID for deletion from database
             Integer imageId = imageIds.get(url);
             if (imageId != null && currentPostId > 0) {
-                // Show confirmation dialog
                 int confirm = JOptionPane.showConfirmDialog(
                     this, 
                     "Delete this image from the database?", 
                     "Confirm Deletion", 
                     JOptionPane.YES_NO_OPTION
                 );
-                
+
                 if (confirm == JOptionPane.YES_OPTION) {
-                    // Call the API to delete the image
                     ImageService.deleteImage(currentPostId, imageId, result -> {
                         if (result.success) {
-                            // Remove from UI
                             removeImageFromUI(url);
                         } else {
                             JOptionPane.showMessageDialog(
@@ -202,7 +204,6 @@ public class ImageUploadPanel extends JPanel {
                     });
                 }
             } else {
-                // Just remove from UI if not yet saved to database
                 removeImageFromUI(url);
             }
         });

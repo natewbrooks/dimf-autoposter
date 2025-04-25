@@ -39,14 +39,14 @@ CREATE TABLE Posts (
 );
 
 -- Status Table (associates Users, Platforms, and Posts)
-CREATE TABLE PostStatus (
-    StatusID SERIAL PRIMARY KEY,
-    UserID INT NOT NULL REFERENCES Users(UserID) ON DELETE CASCADE,
-    PlatformID INT NOT NULL REFERENCES SocialMediaPlatforms(PlatformID) ON DELETE CASCADE,
-    PostID INT NOT NULL REFERENCES MemorialPosts(PostID) ON DELETE CASCADE,
-    TimeStamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CurrentStatus VARCHAR(100) NOT NULL
-);
+-- CREATE TABLE PostStatus (
+--     StatusID SERIAL PRIMARY KEY,
+--     UserID INT NOT NULL REFERENCES Users(UserID) ON DELETE CASCADE,
+--     PlatformID INT NOT NULL REFERENCES SocialMediaPlatforms(PlatformID) ON DELETE CASCADE,
+--     PostID INT NOT NULL REFERENCES MemorialPosts(PostID) ON DELETE CASCADE,
+--     TimeStamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     CurrentStatus VARCHAR(100) NOT NULL
+-- );
 
 -- Image Association Table (MemorialPost contains Images)
 CREATE TABLE PostImages (

@@ -6,7 +6,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -15,10 +14,43 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Service class to handle all API interactions for posts
+ * Service class to handle all post-related operations
  */
 public class PostService {
     private static final String API_BASE_URL = "http://localhost:8000/api";
+    
+    /**
+     * Data class to hold post information
+     */
+    public static class PostData {
+        public int postId = -1;
+        public String name = "";
+        public String dateOfDeath = "";
+        public String content = "";
+        public List<Integer> platformIds = new ArrayList<>();
+        public List<String> imagePaths = new ArrayList<>();
+        
+        // Search/AI cache information
+        public String lastQuery = null;
+        public String lastSummary = null;
+    }
+    
+    /**
+     * Result class for save operations
+     */
+    public static class SaveResult {
+        public boolean success;
+        public String message;
+        public int postId = -1;
+    }
+    
+    /**
+     * Get the API base URL
+     * @return The API base URL
+     */
+    public static String getApiBaseUrl() {
+        return API_BASE_URL;
+    }
     
     /**
      * Load all posts into the provided model
@@ -87,12 +119,6 @@ public class PostService {
                             postData.dateOfDeath = post.getString("DateOfDeath");
                             postData.content = post.has("Content") ? post.getString("Content") : "";
                             
-                            // Load platforms
-                            postData.platformIds = loadPlatformsForPost(postData.postId);
-                            
-                            // Load images
-                            postData.imagePaths = loadImagesForPost(postData.postId);
-                            
                             return postData;
                         }
                     }
@@ -122,63 +148,24 @@ public class PostService {
     }
     
     /**
-     * Load platforms for a post
+     * Get platforms for a post - delegates to PlatformService
      * @param postId Post ID
-     * @return List of platform IDs
+     * @param callback Callback with platform IDs
      */
-    private static List<Integer> loadPlatformsForPost(int postId) {
-        List<Integer> platformIds = new ArrayList<>();
-        try {
-            URL platformsUrl = new URL(API_BASE_URL + "/posts/" + postId + "/platforms/");
-            HttpURLConnection platformsConn = (HttpURLConnection) platformsUrl.openConnection();
-            platformsConn.setRequestMethod("GET");
-            
-            BufferedReader platformsReader = new BufferedReader(new InputStreamReader(platformsConn.getInputStream()));
-            StringBuilder platformsResponse = new StringBuilder();
-            String platformsLine;
-            while ((platformsLine = platformsReader.readLine()) != null) {
-                platformsResponse.append(platformsLine);
-            }
-            platformsReader.close();
-            
-            JSONArray platformsArray = new JSONArray(platformsResponse.toString());
-            for (int j = 0; j < platformsArray.length(); j++) {
-                platformIds.add(platformsArray.getJSONObject(j).getInt("PlatformID"));
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading platforms for post: " + e.getMessage());
-        }
-        return platformIds;
+    public static void getPostPlatforms(int postId, Consumer<List<Integer>> callback) {
+        // Delegate to PlatformService
+        PlatformService.getPlatformsForPost(postId, callback);
     }
     
     /**
-     * Load images for a post
+     * Update platforms for a post - delegates to PlatformService
      * @param postId Post ID
-     * @return List of image paths
+     * @param platformIds List of platform IDs
+     * @param callback Callback with success/failure
      */
-    private static List<String> loadImagesForPost(int postId) {
-        List<String> imagePaths = new ArrayList<>();
-        try {
-            URL imagesUrl = new URL(API_BASE_URL + "/posts/" + postId + "/images/");
-            HttpURLConnection imagesConn = (HttpURLConnection) imagesUrl.openConnection();
-            imagesConn.setRequestMethod("GET");
-            
-            BufferedReader imagesReader = new BufferedReader(new InputStreamReader(imagesConn.getInputStream()));
-            StringBuilder imagesResponse = new StringBuilder();
-            String imagesLine;
-            while ((imagesLine = imagesReader.readLine()) != null) {
-                imagesResponse.append(imagesLine);
-            }
-            imagesReader.close();
-            
-            JSONArray imagesArray = new JSONArray(imagesResponse.toString());
-            for (int j = 0; j < imagesArray.length(); j++) {
-                imagePaths.add(imagesArray.getJSONObject(j).getString("URL"));
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading images for post: " + e.getMessage());
-        }
-        return imagePaths;
+    public static void updatePostPlatforms(int postId, List<Integer> platformIds, Consumer<Boolean> callback) {
+        // Delegate to PlatformService
+        PlatformService.updatePostPlatforms(postId, platformIds, callback);
     }
     
     /**
@@ -313,10 +300,13 @@ public class PostService {
      * @param postData Post data to save
      * @param callback Callback with success/failure message
      */
- // In lib/PostService.java - update the savePost method
     public static void savePost(PostData postData, Consumer<SaveResult> callback) {
         System.out.println("DEBUG - PostService.savePost - Post ID: " + postData.postId);
         System.out.println("DEBUG - PostService.savePost - Image Paths: " + postData.imagePaths);
+        
+        // Get current user ID
+        int currentUserId = UserService.getCurrentUserId();
+        System.out.println("DEBUG - PostService.savePost - Current User ID: " + currentUserId);
         
         SwingWorker<SaveResult, Void> saveWorker = new SwingWorker<>() {
             @Override
@@ -341,12 +331,23 @@ public class PostService {
                     
                     conn.setRequestProperty("Content-Type", "application/json");
                     conn.setDoOutput(true);
+                    
+                    // Add auth token if user is logged in
+                    String token = UserService.getCurrentToken();
+                    if (token != null && !token.isEmpty()) {
+                        conn.setRequestProperty("Authorization", "Bearer " + token);
+                    }
 
                     // Create JSON object for request
                     JSONObject requestObj = new JSONObject();
                     requestObj.put("name", postData.name);
                     requestObj.put("date_of_death", postData.dateOfDeath);
                     requestObj.put("content", postData.content);
+                    
+                    // Add creator ID if user is logged in
+                    if (currentUserId > 0) {
+                        requestObj.put("created_by", currentUserId);
+                    }
                     
                     // Add platforms array
                     JSONArray platformsArray = new JSONArray();
@@ -392,7 +393,7 @@ public class PostService {
                         
                         JSONObject responseJson = new JSONObject(response);
                         
-                        // IMPORTANT FIX: Extract post_id from response correctly
+                        // Extract post_id from response correctly
                         int newPostId = -1;
                         if (responseJson.has("post_id")) {
                             newPostId = responseJson.getInt("post_id");
@@ -461,31 +462,6 @@ public class PostService {
     }
     
     /**
-     * Get platforms associated with a post
-     * Uses PlatformService to retrieve the platforms
-     * 
-     * @param postId The post ID
-     * @param callback Callback with result
-     */
-    public static void getPostPlatforms(int postId, Consumer<List<Integer>> callback) {
-        // Delegate to PlatformService
-        PlatformService.getPostPlatforms(postId, callback);
-    }
-
-    /**
-     * Update platforms for a post
-     * Uses PlatformService to update the platforms
-     * 
-     * @param postId The post ID
-     * @param platformIds List of platform IDs
-     * @param callback Callback with success/failure
-     */
-    public static void updatePostPlatforms(int postId, List<Integer> platformIds, Consumer<Boolean> callback) {
-        // Delegate to PlatformService
-        PlatformService.updatePostPlatforms(postId, platformIds, callback);
-    }
-    
-    /**
      * Properly escapes a string for JSON inclusion
      */
     private static String escapeJson(String input) {
@@ -501,30 +477,5 @@ public class PostService {
             .replace("\t", "\\t")
             .replace("\b", "\\b")
             .replace("\f", "\\f");
-    }
-    
-    /**
-     * Data class to hold post information
-     */
-    public static class PostData {
-        public int postId = -1;
-        public String name = "";
-        public String dateOfDeath = "";
-        public String content = "";
-        public List<Integer> platformIds = new ArrayList<>();
-        public List<String> imagePaths = new ArrayList<>();
-        
-        // Search/AI cache information
-        public String lastQuery = null;
-        public String lastSummary = null;
-    }
-    
-    /**
-     * Result class for save operations
-     */
-    public static class SaveResult {
-        public boolean success;
-        public String message;
-        public int postId = -1;
     }
 }

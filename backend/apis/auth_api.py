@@ -9,6 +9,11 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
 router = APIRouter()
 
 
@@ -26,7 +31,59 @@ def login_user(data: LoginRequest, db: Session = Depends(get_db)):
     if not bcrypt.checkpw(data.password.encode('utf-8'), result["Password"].encode('utf-8')):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    return {"status": "Login successful", "user_id": result["UserID"], "username": result["Username"]}
+    # Build response that matches what Java expects
+    return {
+        "status": "Login successful",
+        "token": "sample-token-" + str(result["UserID"]),   # <--- Add token here
+        "user": {
+            "UserID": result["UserID"],
+            "Username": result["Username"],
+            "Email": result["Email"]
+        }
+    }
+
+# ---------- REGISTER ------------
+
+@router.post("/register")
+def register_user(data: RegisterRequest, db: Session = Depends(get_db)):
+    # Check if user with this username already exists
+    existing_user = db.execute(
+        text("SELECT * FROM Users WHERE Username = :username"), 
+        {"username": data.username}
+    ).mappings().first()
+    
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this username already exists")
+    
+    # Hash the password
+    hashed_password = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    # Insert the new user
+    db.execute(
+        text("""
+            INSERT INTO Users (Username, Email, Password)
+            VALUES (:username, :email, :password)
+        """), 
+        {"username": data.username, "email": data.email, "password": hashed_password}
+    )
+    db.commit()
+    
+    # Get the newly created user
+    new_user = db.execute(
+        text("SELECT * FROM Users WHERE Username = :username"), 
+        {"username": data.username}
+    ).mappings().first()
+    
+    # Return user info and token (assuming you'll implement token generation later)
+    return {
+        "status": "Registration successful",
+        "user": {
+            "UserID": new_user["UserID"],
+            "Username": new_user["Username"],
+            "Email": new_user["Email"]
+        },
+        "token": "sample-token-" + str(new_user["UserID"])  # Replace with actual token generation
+    }
 
 # ---------- CRUD USERS ----------
 @router.get("/users")

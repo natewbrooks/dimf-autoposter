@@ -1,9 +1,29 @@
 package components.sections;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+
+import lib.ExportExcelUtil;
 
 public class SidebarPanel extends JPanel {
     private JList<String> previousPosts;
@@ -48,7 +68,7 @@ public class SidebarPanel extends JPanel {
         previousPosts.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
+                if (e.getClickCount() == 1) {
                     int index = previousPosts.locationToIndex(e.getPoint());
                     if (index >= 0 && formPanel != null) {
                         String selectedName = postsModel.getElementAt(index);
@@ -57,12 +77,26 @@ public class SidebarPanel extends JPanel {
                 }
             }
         });
+        
+        previousPosts.addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int index = previousPosts.locationToIndex(e.getPoint());
+                if (index >= 0 && previousPosts.getCellBounds(index, index).contains(e.getPoint())) {
+                    previousPosts.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                } else {
+                    previousPosts.setCursor(Cursor.getDefaultCursor());
+                }
+            }
+        });
+
 
         JScrollPane scrollPane = new JScrollPane(previousPosts);
         scrollPane.setBorder(null);
 
         // Bottom buttons (full-width)
         JButton newPostBtn = new JButton("New Post");
+        newPostBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         newPostBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         newPostBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
         newPostBtn.addActionListener(e -> {
@@ -74,6 +108,26 @@ public class SidebarPanel extends JPanel {
         exportExcelButton.setText("Export Excel");
         exportExcelButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         exportExcelButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        exportExcelButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        exportExcelButton.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Save Excel File");
+
+            // ✅ Pre-set default file name
+            fileChooser.setSelectedFile(new java.io.File("dimf-posts.xlsx"));
+
+            int userSelection = fileChooser.showSaveDialog(this);
+
+            if (userSelection == JFileChooser.APPROVE_OPTION) {
+                String path = fileChooser.getSelectedFile().getAbsolutePath();
+                if (!path.endsWith(".xlsx")) {
+                    path += ".xlsx";
+                }
+                ExportExcelUtil.exportPostsToExcel(path);
+            }
+        });
+
+
 
         JPanel buttonPanel = new JPanel();
         buttonPanel.setOpaque(false);

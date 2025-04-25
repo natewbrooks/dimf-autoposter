@@ -14,9 +14,15 @@ import javax.swing.SwingUtilities;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+/**
+ * Service responsible for all platform-related operations
+ */
 public class PlatformService {
     private static final String API_BASE_URL = "http://localhost:8000/api";
     
+    /**
+     * Data class for platform information
+     */
     public static class PlatformData {
         public int platformId;
         public String name;
@@ -25,6 +31,9 @@ public class PlatformService {
         public String iconUrl;
     }
     
+    /**
+     * Result class for platform operations
+     */
     public static class PlatformResult {
         public boolean success;
         public String message;
@@ -36,7 +45,10 @@ public class PlatformService {
         }
     }
     
-    // Get all platforms with callback
+    /**
+     * Get all available platforms
+     * @param callback Callback with platform data
+     */
     public static void getAllPlatforms(Consumer<PlatformResult> callback) {
         System.out.println("DEBUG - PlatformService.getAllPlatforms");
         
@@ -112,9 +124,13 @@ public class PlatformService {
         }).start();
     }
     
-    // Get platforms for a specific post
-    public static void getPostPlatforms(int postId, Consumer<List<Integer>> callback) {
-        System.out.println("DEBUG - PlatformService.getPostPlatforms - Post ID: " + postId);
+    /**
+     * Get platforms associated with a specific post
+     * @param postId Post ID
+     * @param callback Callback with platform IDs
+     */
+    public static void getPlatformsForPost(int postId, Consumer<List<Integer>> callback) {
+        System.out.println("DEBUG - PlatformService.getPlatformsForPost - Post ID: " + postId);
         
         new Thread(() -> {
             try {
@@ -125,7 +141,7 @@ public class PlatformService {
                 
                 // Get response
                 int responseCode = conn.getResponseCode();
-                System.out.println("DEBUG - PlatformService.getPostPlatforms - Response code: " + responseCode);
+                System.out.println("DEBUG - PlatformService.getPlatformsForPost - Response code: " + responseCode);
                 
                 // Read response body
                 StringBuilder responseBody = new StringBuilder();
@@ -141,7 +157,7 @@ public class PlatformService {
                 }
                 
                 String responseBodyStr = responseBody.toString();
-                System.out.println("DEBUG - PlatformService.getPostPlatforms - Response body: " + responseBodyStr);
+                System.out.println("DEBUG - PlatformService.getPlatformsForPost - Response body: " + responseBodyStr);
                 
                 // Process response
                 if (responseCode >= 200 && responseCode < 300) {
@@ -157,23 +173,28 @@ public class PlatformService {
                         
                         SwingUtilities.invokeLater(() -> callback.accept(platformIds));
                     } catch (Exception e) {
-                        System.out.println("DEBUG - PlatformService.getPostPlatforms - Exception parsing response: " + e.getMessage());
+                        System.out.println("DEBUG - PlatformService.getPlatformsForPost - Exception parsing response: " + e.getMessage());
                         e.printStackTrace();
                         SwingUtilities.invokeLater(() -> callback.accept(new ArrayList<>()));
                     }
                 } else {
-                    System.out.println("DEBUG - PlatformService.getPostPlatforms - Error response: " + responseBodyStr);
+                    System.out.println("DEBUG - PlatformService.getPlatformsForPost - Error response: " + responseBodyStr);
                     SwingUtilities.invokeLater(() -> callback.accept(new ArrayList<>()));
                 }
             } catch (Exception e) {
-                System.out.println("DEBUG - PlatformService.getPostPlatforms - Exception: " + e.getMessage());
+                System.out.println("DEBUG - PlatformService.getPlatformsForPost - Exception: " + e.getMessage());
                 e.printStackTrace();
                 SwingUtilities.invokeLater(() -> callback.accept(new ArrayList<>()));
             }
         }).start();
     }
     
-    // Update platforms for a post
+    /**
+     * Update platforms for a post
+     * @param postId Post ID
+     * @param platformIds List of platform IDs
+     * @param callback Callback with success/failure
+     */
     public static void updatePostPlatforms(int postId, List<Integer> platformIds, Consumer<Boolean> callback) {
         System.out.println("DEBUG - PlatformService.updatePostPlatforms - Post ID: " + postId + ", Platforms: " + platformIds);
         
@@ -234,5 +255,38 @@ public class PlatformService {
                 SwingUtilities.invokeLater(() -> callback.accept(false));
             }
         }).start();
+    }
+    
+    /**
+     * Get platform data for specific platform IDs
+     * 
+     * @param platformIds List of platform IDs
+     * @param callback Callback with list of platform data
+     */
+    public static void getPlatformDataByIds(List<Integer> platformIds, Consumer<List<PlatformData>> callback) {
+        if (platformIds == null || platformIds.isEmpty()) {
+            SwingUtilities.invokeLater(() -> callback.accept(new ArrayList<>()));
+            return;
+        }
+        
+        System.out.println("DEBUG - PlatformService.getPlatformDataByIds - Platform IDs: " + platformIds);
+        
+        // Get all platforms and filter by IDs
+        getAllPlatforms(result -> {
+            if (!result.success || result.platforms == null) {
+                SwingUtilities.invokeLater(() -> callback.accept(new ArrayList<>()));
+                return;
+            }
+            
+            // Filter platforms by ID
+            List<PlatformData> filteredPlatforms = new ArrayList<>();
+            for (PlatformData platform : result.platforms) {
+                if (platformIds.contains(platform.platformId)) {
+                    filteredPlatforms.add(platform);
+                }
+            }
+            
+            SwingUtilities.invokeLater(() -> callback.accept(filteredPlatforms));
+        });
     }
 }

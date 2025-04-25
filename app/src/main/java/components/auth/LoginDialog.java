@@ -2,9 +2,7 @@ package components.auth;
 
 import javax.swing.*;
 import java.awt.*;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import lib.UserService;
 
 public class LoginDialog extends JDialog {
     private JTextField usernameField;
@@ -14,46 +12,79 @@ public class LoginDialog extends JDialog {
 
     public LoginDialog(Frame parent) {
         super(parent, "Login", true);
-        setSize(900, 600);
+        setSize(400, 250);
         setLayout(new GridBagLayout()); // Center content
         setLocationRelativeTo(parent);
 
-        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(4, 1, 10, 10));
         panel.setBorder(BorderFactory.createCompoundBorder(
-        	    BorderFactory.createTitledBorder("Log In"),
-        	    BorderFactory.createEmptyBorder(8, 8, 8, 8)
-        	));
-        
-        // Username
-        panel.add(new JLabel("Username:"));
+                BorderFactory.createTitledBorder("Log In"),
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+
+        // Username panel
+        JPanel usernamePanel = new JPanel(new BorderLayout(5, 5));
+        usernamePanel.add(new JLabel("Username:"), BorderLayout.WEST);
         usernameField = new JTextField("user", 20); // Placeholder
-        panel.add(usernameField);
+        usernamePanel.add(usernameField, BorderLayout.CENTER);
+        panel.add(usernamePanel);
 
-        // Password
-        panel.add(new JLabel("Password:"));
+        // Password panel
+        JPanel passwordPanel = new JPanel(new BorderLayout(5, 5));
+        passwordPanel.add(new JLabel("Password:"), BorderLayout.WEST);
         passwordField = new JPasswordField("pass", 20); // Placeholder
-        panel.add(passwordField);
+        passwordPanel.add(passwordField, BorderLayout.CENTER);
+        panel.add(passwordPanel);
 
-        // Buttons
+        // Login button
         JButton loginButton = new JButton("Login");
-        JButton cancelButton = new JButton("Cancel");
         panel.add(loginButton);
-        panel.add(cancelButton);
+
+        // Additional buttons panel
+        JPanel extraButtonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton createAccountButton = new JButton("Create Account");
+        JButton cancelButton = new JButton("Cancel");
+        extraButtonsPanel.add(createAccountButton);
+        extraButtonsPanel.add(cancelButton);
+        panel.add(extraButtonsPanel);
 
         // Login logic
         loginButton.addActionListener(e -> {
             String enteredUsername = usernameField.getText();
             String enteredPassword = new String(passwordField.getPassword());
 
-            if (authenticate(enteredUsername, enteredPassword)) {
-                username = enteredUsername;
-                succeeded = true;
-                dispose();
-            } else {
-                JOptionPane.showMessageDialog(LoginDialog.this,
-                        "Invalid credentials",
-                        "Login Failed",
-                        JOptionPane.ERROR_MESSAGE);
+            // Use UserService to authenticate
+            UserService.login(enteredUsername, enteredPassword, result -> {
+                if (result.success) {
+                    username = enteredUsername;
+                    succeeded = true;
+                    dispose();
+                } else {
+                    JOptionPane.showMessageDialog(LoginDialog.this,
+                            "Login failed: " + result.message,
+                            "Login Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            });
+        });
+
+        // Create Account logic
+        createAccountButton.addActionListener(e -> {
+            RegisterDialog registerDialog = new RegisterDialog(parent);
+            registerDialog.setVisible(true);
+            // If registration was successful, pre-fill the username field
+            if (registerDialog.isSucceeded()) {
+                // The username would be automatically filled if auto-login is enabled
+                // after registration, but we'll still have this dialog open
+                if (!UserService.isLoggedIn()) {
+                    // Focus on password field since username might be pre-filled
+                    passwordField.requestFocus();
+                } else {
+                    // Auto-login was successful, so we can close this dialog too
+                    username = UserService.getCurrentUsername();
+                    succeeded = true;
+                    dispose();
+                }
             }
         });
 
@@ -68,27 +99,6 @@ public class LoginDialog extends JDialog {
 
         add(panel, new GridBagConstraints());
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-    }
-
-    private boolean authenticate(String username, String password) {
-        try {
-            URL url = new URL("http://localhost:8000/api/auth/login");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setDoOutput(true);
-
-            String json = String.format("{\"username\":\"%s\", \"password\":\"%s\"}", username, password);
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(json.getBytes());
-                os.flush();
-            }
-
-            return conn.getResponseCode() == 200;
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        return false;
     }
 
     public boolean isSucceeded() {
