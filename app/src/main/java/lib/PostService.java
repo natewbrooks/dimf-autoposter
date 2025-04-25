@@ -461,6 +461,31 @@ public class PostService {
     }
     
     /**
+     * Get platforms associated with a post
+     * Uses PlatformService to retrieve the platforms
+     * 
+     * @param postId The post ID
+     * @param callback Callback with result
+     */
+    public static void getPostPlatforms(int postId, Consumer<List<Integer>> callback) {
+        // Delegate to PlatformService
+        PlatformService.getPostPlatforms(postId, callback);
+    }
+
+    /**
+     * Update platforms for a post
+     * Uses PlatformService to update the platforms
+     * 
+     * @param postId The post ID
+     * @param platformIds List of platform IDs
+     * @param callback Callback with success/failure
+     */
+    public static void updatePostPlatforms(int postId, List<Integer> platformIds, Consumer<Boolean> callback) {
+        // Delegate to PlatformService
+        PlatformService.updatePostPlatforms(postId, platformIds, callback);
+    }
+    
+    /**
      * Properly escapes a string for JSON inclusion
      */
     private static String escapeJson(String input) {

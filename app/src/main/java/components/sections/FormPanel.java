@@ -314,10 +314,26 @@ public class FormPanel extends JPanel {
                 // Refresh sidebar
                 if (sidebarModel != null) {
                     PostService.loadPosts(sidebarModel);
+                    // Refresh the platform selector to ensure it has the latest data
+                    platformSelector.refresh();
                 }
                 
                 return;
             }
+            
+            currentPostData.postId = postId;
+            imageUploader.setCurrentPostId(postId);
+            
+            List<Integer> selectedPlatforms = platformSelector.getSelectedPlatformIds();
+            currentPostData.platformIds = selectedPlatforms;
+
+            PostService.updatePostPlatforms(postId, selectedPlatforms, success -> {
+                if (!success) {
+                    System.out.println("DEBUG - Failed to update platform selections for post ID: " + postId);
+                } else {
+                    System.out.println("DEBUG - Platform selections updated successfully for post ID: " + postId);
+                }
+            });
             
             // IMPORTANT FIX: Verify that we have a valid post ID
             if (postId <= 0) {
@@ -470,30 +486,35 @@ public class FormPanel extends JPanel {
             // Show platforms and images
             additionalContentPanel.setVisible(true);
             
-            // Set selected platforms
-            platformSelector.setSelectedPlatforms(postData.platformIds);
-            
             // If the post has an ID, load images from the API
             if (postData.postId > 0) {
+                // Set the post ID in the image uploader
+                imageUploader.setCurrentPostId(postData.postId);
+                
                 // Load images from API
                 lib.ImageService.getImagesForPost(postData.postId, imageResult -> {
                     if (imageResult.success && imageResult.images != null) {
-                        // Extract URLs from the result
-                        List<String> imageUrls = new ArrayList<>();
-                        for (lib.ImageService.ImageData image : imageResult.images) {
-                            imageUrls.add(image.url);
-                        }
-                        
-                        // Update the image panel
-                        imageUploader.loadImagesFromUrls(imageUrls);
+                        // Use the new method to load images with their IDs
+                        imageUploader.loadImagesFromData(imageResult.images);
                     } else {
                         // Clear any existing images
                         imageUploader.clearImages();
                     }
                 });
+                
+                platformSelector.clearSelections();
+                
+                PostService.getPostPlatforms(postData.postId, platformIds -> {
+                    // Set selected platforms
+                    platformSelector.setSelectedPlatforms(platformIds);
+                    
+                    // Store in current post data
+                    currentPostData.platformIds = platformIds;
+                });
             } else {
                 // For compatibility with older data format
                 imageUploader.loadImagesFromUrls(postData.imagePaths);
+                platformSelector.setSelectedPlatforms(postData.platformIds);
             }
             
             // Show save button
@@ -518,7 +539,11 @@ public class FormPanel extends JPanel {
             
             // Reset platforms and images
             platformSelector.clearSelections();
+            // Optionally refresh the platform list
+            platformSelector.refresh();
+            
             imageUploader.clearImages();
+            imageUploader.setCurrentPostId(-1);
             
             // Reset UI state
             aiContainer.setVisible(false);

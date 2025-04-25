@@ -10,12 +10,15 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 import components.layout.WrapLayout;
+import lib.ImageService;
 
 public class ImageUploadPanel extends JPanel {
     private JPanel imagePreviewPanel;
     private JButton addImageButton;
     private Map<String, Component> imageComponents = new HashMap<>();
+    private Map<String, Integer> imageIds = new HashMap<>(); // Map to track image IDs
     private JLabel placeholderLabel;
+    private int currentPostId = -1; // Track current post ID
 
     public ImageUploadPanel() {
         setLayout(new BorderLayout());
@@ -46,6 +49,11 @@ public class ImageUploadPanel extends JPanel {
         addImageButton.addActionListener(e -> showAddImageDialog());
 
         addPlaceholder();
+    }
+
+    // Set the current post ID for image deletion
+    public void setCurrentPostId(int postId) {
+        this.currentPostId = postId;
     }
 
     private void showAddImageDialog() {
@@ -166,11 +174,37 @@ public class ImageUploadPanel extends JPanel {
         deleteBtn.setFocusPainted(false);
         deleteBtn.setPreferredSize(new Dimension(20, 20));
         deleteBtn.addActionListener(e -> {
-            imagePreviewPanel.remove(card);
-            imageComponents.remove(url);
-            if (imageComponents.isEmpty()) addPlaceholder();
-            imagePreviewPanel.revalidate();
-            imagePreviewPanel.repaint();
+            // Check if we have an image ID and post ID for deletion from database
+            Integer imageId = imageIds.get(url);
+            if (imageId != null && currentPostId > 0) {
+                // Show confirmation dialog
+                int confirm = JOptionPane.showConfirmDialog(
+                    this, 
+                    "Delete this image from the database?", 
+                    "Confirm Deletion", 
+                    JOptionPane.YES_NO_OPTION
+                );
+                
+                if (confirm == JOptionPane.YES_OPTION) {
+                    // Call the API to delete the image
+                    ImageService.deleteImage(currentPostId, imageId, result -> {
+                        if (result.success) {
+                            // Remove from UI
+                            removeImageFromUI(url);
+                        } else {
+                            JOptionPane.showMessageDialog(
+                                this,
+                                "Failed to delete image: " + result.message,
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE
+                            );
+                        }
+                    });
+                }
+            } else {
+                // Just remove from UI if not yet saved to database
+                removeImageFromUI(url);
+            }
         });
 
         // Small top bar for the button
@@ -186,10 +220,39 @@ public class ImageUploadPanel extends JPanel {
         imagePreviewPanel.repaint();
     }
 
+    // Helper method to remove image from UI
+    private void removeImageFromUI(String url) {
+        Component card = imageComponents.get(url);
+        if (card != null) {
+            imagePreviewPanel.remove(card);
+            imageComponents.remove(url);
+            imageIds.remove(url);
+            if (imageComponents.isEmpty()) addPlaceholder();
+            imagePreviewPanel.revalidate();
+            imagePreviewPanel.repaint();
+        }
+    }
+
     public List<String> getImageUrls() {
         return new ArrayList<>(imageComponents.keySet());
     }
 
+    // Updated to accept image data objects with IDs
+    public void loadImagesFromData(List<ImageService.ImageData> images) {
+        clearImages();
+        if (images != null && !images.isEmpty()) {
+            removePlaceholder();
+            for (ImageService.ImageData image : images) {
+                addImage(image.url, image.source != null ? image.source : "");
+                // Store the image ID
+                imageIds.put(image.url, image.imageId);
+            }
+        } else {
+            addPlaceholder();
+        }
+    }
+
+    // Maintain backward compatibility
     public void loadImagesFromUrls(List<String> imageUrls) {
         clearImages();
         if (imageUrls != null && !imageUrls.isEmpty()) {
@@ -205,6 +268,7 @@ public class ImageUploadPanel extends JPanel {
     public void clearImages() {
         imagePreviewPanel.removeAll();
         imageComponents.clear();
+        imageIds.clear();
         placeholderLabel = null;
         addPlaceholder();
         imagePreviewPanel.revalidate();

@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import get_db, test_connection
 from fastapi import HTTPException
 
-
 from apis import (
     auth_api,
     images_api,

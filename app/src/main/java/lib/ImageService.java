@@ -335,4 +335,79 @@ public class ImageService {
             }
         }).start();
     }
+    
+    
+    public static void deleteImage(int postId, int imageId, Consumer<ImageResult> callback) {
+        System.out.println("DEBUG - ImageService.deleteImage - Post ID: " + postId + ", Image ID: " + imageId);
+        
+        new Thread(() -> {
+            try {
+                // Create JSON payload
+                JSONObject payload = new JSONObject();
+                payload.put("post_id", postId);
+                payload.put("image_id", imageId);
+                String jsonBody = payload.toString();
+                
+                System.out.println("DEBUG - ImageService.deleteImage - Request body: " + jsonBody);
+                
+                // Create connection
+                URL apiUrl = new URL(API_BASE_URL + "/posts/images/");
+                HttpURLConnection conn = (HttpURLConnection) apiUrl.openConnection();
+                conn.setRequestMethod("DELETE");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setDoOutput(true);
+                
+                // Send request body
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonBody.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+                
+                // Get response
+                int responseCode = conn.getResponseCode();
+                System.out.println("DEBUG - ImageService.deleteImage - Response code: " + responseCode);
+                
+                // Read response body
+                StringBuilder responseBody = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(
+                        new InputStreamReader(
+                                responseCode >= 200 && responseCode < 300 
+                                ? conn.getInputStream() 
+                                : conn.getErrorStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        responseBody.append(line);
+                    }
+                }
+                
+                String responseBodyStr = responseBody.toString();
+                System.out.println("DEBUG - ImageService.deleteImage - Response body: " + responseBodyStr);
+                
+                // Process response
+                if (responseCode >= 200 && responseCode < 300) {
+                    try {
+                        JSONObject result = new JSONObject(responseBodyStr);
+                        SwingUtilities.invokeLater(() -> 
+                            callback.accept(new ImageResult(true, result.getString("status"))));
+                    } catch (Exception e) {
+                        System.out.println("DEBUG - ImageService.deleteImage - Exception parsing response: " + e.getMessage());
+                        SwingUtilities.invokeLater(() -> 
+                            callback.accept(new ImageResult(false, "Failed to parse response: " + e.getMessage())));
+                    }
+                } else {
+                    String errorMsg = "Failed to delete image. Status code: " + responseCode;
+                    if (!responseBodyStr.isEmpty()) {
+                        errorMsg += " - " + responseBodyStr;
+                    }
+                    final String finalErrorMsg = errorMsg;
+                    SwingUtilities.invokeLater(() -> callback.accept(new ImageResult(false, finalErrorMsg)));
+                }
+            } catch (Exception e) {
+                System.out.println("DEBUG - ImageService.deleteImage - Exception: " + e.getMessage());
+                SwingUtilities.invokeLater(() -> 
+                    callback.accept(new ImageResult(false, "Error: " + e.getMessage())));
+            }
+        }).start();
+    }
 }
