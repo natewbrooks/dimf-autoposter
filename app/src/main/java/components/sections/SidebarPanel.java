@@ -23,7 +23,7 @@ import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 
-import lib.ExportExcelUtil;
+import lib.ExportExcelService;
 
 public class SidebarPanel extends JPanel {
     private JList<String> previousPosts;
@@ -123,7 +123,7 @@ public class SidebarPanel extends JPanel {
                 if (!path.endsWith(".xlsx")) {
                     path += ".xlsx";
                 }
-                ExportExcelUtil.exportPostsToExcel(path);
+                ExportExcelService.exportPostsToExcel(path);
             }
         });
 

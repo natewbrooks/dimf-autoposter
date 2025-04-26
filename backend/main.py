@@ -8,7 +8,8 @@ from apis import (
     images_api,
     platforms_api,
     google_api,
-    ai_api
+    ai_api,
+    export_excel_api,
 )
 from apis.posts import (
     posts_api,
@@ -77,6 +78,12 @@ app.include_router(
     auth_api.router,
     prefix="/api/auth",
     tags=["Auth"],
+)
+
+app.include_router(
+    export_excel_api.router,
+    prefix="/api/export/excel",
+    tags=["Export Excel"],
 )
 
 # Google Search API

@@ -13,6 +13,8 @@ import java.util.function.Consumer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import lib.UserService;
+
 /**
  * Service class to handle all post-related operations
  */
@@ -27,6 +29,8 @@ public class PostService {
         public String name = "";
         public String dateOfDeath = "";
         public String content = "";
+        public String creatorUsername;
+        public int creatorUserId = -1;
         public List<Integer> platformIds = new ArrayList<>();
         public List<String> imagePaths = new ArrayList<>();
         
@@ -61,6 +65,12 @@ public class PostService {
             URL url = new URL(API_BASE_URL + "/posts");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
+            
+            // Add auth token from UserService
+            String token = UserService.getCurrentToken();
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
             
             BufferedReader in = new BufferedReader(
                     new InputStreamReader(conn.getInputStream()));
@@ -98,6 +108,12 @@ public class PostService {
                     getConn.setRequestMethod("GET");
                     getConn.setRequestProperty("Accept", "application/json");
                     
+                    // Add auth token from UserService
+                    String token = UserService.getCurrentToken();
+                    if (token != null && !token.isEmpty()) {
+                        getConn.setRequestProperty("Authorization", "Bearer " + token);
+                    }
+                    
                     BufferedReader in = new BufferedReader(new InputStreamReader(getConn.getInputStream()));
                     StringBuilder getResponse = new StringBuilder();
                     String line;
@@ -118,6 +134,21 @@ public class PostService {
                             postData.name = post.getString("Name");
                             postData.dateOfDeath = post.getString("DateOfDeath");
                             postData.content = post.has("Content") ? post.getString("Content") : "";
+                            
+                            // Get creator information
+                            if (post.has("CreatedBy") && !post.isNull("CreatedBy")) {
+                                postData.creatorUserId = post.getInt("CreatedBy");
+                            }
+                            
+                            if (post.has("CreatorUsername") && !post.isNull("CreatorUsername")) {
+                                postData.creatorUsername = post.getString("CreatorUsername");
+                            }
+                            
+                            // Load images
+                            loadPostImages(postData);
+                            
+                            // Load platforms
+                            loadPostPlatforms(postData);
                             
                             return postData;
                         }
@@ -145,6 +176,80 @@ public class PostService {
         };
         
         loadWorker.execute();
+    }
+    
+    /**
+     * Load images for a post
+     * @param postData Post data object to populate with images
+     */
+    private static void loadPostImages(PostData postData) {
+        try {
+            URL url = new URL(API_BASE_URL + "/posts/" + postData.postId + "/images/");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            
+            // Add auth token
+            String token = UserService.getCurrentToken();
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = in.readLine()) != null) {
+                response.append(line);
+            }
+            in.close();
+            
+            JSONArray images = new JSONArray(response.toString());
+            postData.imagePaths.clear();
+            
+            for (int i = 0; i < images.length(); i++) {
+                JSONObject image = images.getJSONObject(i);
+                postData.imagePaths.add(image.getString("URL"));
+            }
+            
+        } catch (Exception e) {
+            System.out.println("Error loading images: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Load platforms for a post
+     * @param postData Post data object to populate with platforms
+     */
+    private static void loadPostPlatforms(PostData postData) {
+        try {
+            URL url = new URL(API_BASE_URL + "/posts/" + postData.postId + "/platforms/");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            
+            // Add auth token
+            String token = UserService.getCurrentToken();
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = in.readLine()) != null) {
+                response.append(line);
+            }
+            in.close();
+            
+            JSONArray platforms = new JSONArray(response.toString());
+            postData.platformIds.clear();
+            
+            for (int i = 0; i < platforms.length(); i++) {
+                JSONObject platform = platforms.getJSONObject(i);
+                postData.platformIds.add(platform.getInt("PlatformID"));
+            }
+            
+        } catch (Exception e) {
+            System.out.println("Error loading platforms: " + e.getMessage());
+        }
     }
     
     /**
@@ -184,6 +289,12 @@ public class PostService {
                     HttpURLConnection getConn = (HttpURLConnection) getUrl.openConnection();
                     getConn.setRequestMethod("GET");
                     getConn.setRequestProperty("Accept", "application/json");
+                    
+                    // Add auth token from UserService
+                    String token = UserService.getCurrentToken();
+                    if (token != null && !token.isEmpty()) {
+                        getConn.setRequestProperty("Authorization", "Bearer " + token);
+                    }
 
                     int responseCode = getConn.getResponseCode();
                     
@@ -250,6 +361,12 @@ public class PostService {
         postConn.setRequestMethod("POST");
         postConn.setRequestProperty("Content-Type", "application/json");
         postConn.setDoOutput(true);
+        
+        // Add auth token from UserService
+        String token = UserService.getCurrentToken();
+        if (token != null && !token.isEmpty()) {
+            postConn.setRequestProperty("Authorization", "Bearer " + token);
+        }
 
         // Properly escape JSON values
         String escapedQuery = escapeJson(query);
@@ -304,9 +421,20 @@ public class PostService {
         System.out.println("DEBUG - PostService.savePost - Post ID: " + postData.postId);
         System.out.println("DEBUG - PostService.savePost - Image Paths: " + postData.imagePaths);
         
-        // Get current user ID
+        // Get current user information from UserService
         int currentUserId = UserService.getCurrentUserId();
+        String currentUsername = UserService.getCurrentUsername();
         System.out.println("DEBUG - PostService.savePost - Current User ID: " + currentUserId);
+        System.out.println("DEBUG - PostService.savePost - Current Username: " + currentUsername);
+        
+        // Update creator information if needed
+        if (postData.creatorUserId <= 0 && currentUserId > 0) {
+            postData.creatorUserId = currentUserId;
+        }
+        
+        if ((postData.creatorUsername == null || postData.creatorUsername.isEmpty()) && currentUsername != null && !currentUsername.isEmpty()) {
+            postData.creatorUsername = currentUsername;
+        }
         
         SwingWorker<SaveResult, Void> saveWorker = new SwingWorker<>() {
             @Override
@@ -332,7 +460,7 @@ public class PostService {
                     conn.setRequestProperty("Content-Type", "application/json");
                     conn.setDoOutput(true);
                     
-                    // Add auth token if user is logged in
+                    // Add auth token from UserService
                     String token = UserService.getCurrentToken();
                     if (token != null && !token.isEmpty()) {
                         conn.setRequestProperty("Authorization", "Bearer " + token);
@@ -344,9 +472,18 @@ public class PostService {
                     requestObj.put("date_of_death", postData.dateOfDeath);
                     requestObj.put("content", postData.content);
                     
-                    // Add creator ID if user is logged in
-                    if (currentUserId > 0) {
+                    // Add creator ID - use the ID from the post data or current user
+                    if (postData.creatorUserId > 0) {
+                        requestObj.put("created_by", postData.creatorUserId);
+                    } else if (currentUserId > 0) {
                         requestObj.put("created_by", currentUserId);
+                    }
+                    
+                    // Add creator username - use the username from post data or current user
+                    if (postData.creatorUsername != null && !postData.creatorUsername.isEmpty()) {
+                        requestObj.put("creator_username", postData.creatorUsername);
+                    } else if (currentUsername != null && !currentUsername.isEmpty()) {
+                        requestObj.put("creator_username", currentUsername);
                     }
                     
                     // Add platforms array

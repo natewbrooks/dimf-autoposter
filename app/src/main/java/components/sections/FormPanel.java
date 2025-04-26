@@ -459,12 +459,7 @@ public class FormPanel extends JPanel {
         System.out.println("DEBUG - After updating currentPostData - Post ID: " + currentPostData.postId);
         System.out.println("DEBUG - After saving post - Image URLs: " + currentPostData.imagePaths);
         
-        // Process images if there are any
-        if (currentPostData.imagePaths.isEmpty()) {
-            finalizeSaveOperation(postResult);
-        } else {
-            processImages(postId, postResult);
-        }
+        finalizeSaveOperation(postResult);
     }
     
     /**

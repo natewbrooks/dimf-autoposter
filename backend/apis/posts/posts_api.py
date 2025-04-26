@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 router = APIRouter()
 
@@ -11,54 +11,151 @@ class PostCreate(BaseModel):
     name: str
     date_of_death: str
     content: str = ''
-    created_by: int | None = None
+    images: List[str] = []  # Accept list of image URLs from frontend
+    platforms: List[int] = []
+    created_by: Optional[int] = None  # User ID of the creator
+    creator_username: Optional[str] = None  # Username of the creator
 
 class PlatformSelection(BaseModel):
     platform_ids: List[int]
 
 @router.get("/")
 def get_posts(db: Session = Depends(get_db)):
-    return db.execute(text("SELECT * FROM Posts")).mappings().all()
+    # Get posts with creator information
+    posts = db.execute(text("""
+        SELECT p.*, u.Username as CreatorUsername 
+        FROM Posts p
+        LEFT JOIN Users u ON p.CreatedBy = u.UserID
+    """)).mappings().all()
+    return posts
 
 @router.post("/")
 def create_post(post: PostCreate, db: Session = Depends(get_db)):
     try:
-        db.execute(text("""
+        # Create the post with creator information
+        result = db.execute(text("""
             INSERT INTO Posts (Name, DateOfDeath, Content, CreatedBy)
             VALUES (:name, :dod, :content, :created_by)
         """), {
             "name": post.name,
             "dod": post.date_of_death,
             "content": post.content,
-            "created_by": post.created_by
+            "created_by": post.created_by,  # Add the creator ID
         })
-        result = db.execute(text("SELECT LAST_INSERT_ID()"))
-        post_id = result.scalar_one()
         db.commit()
+
+        post_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+
+        # Insert Images + Link to Post
+        replace_post_images(db, post_id, post.images)
+        
+        # Insert Platform associations
+        if post.platforms:
+            for platform_id in post.platforms:
+                db.execute(text("""
+                    INSERT INTO PostDistributions (PostID, PlatformID)
+                    VALUES (:post_id, :platform_id)
+                """), {
+                    "post_id": post_id,
+                    "platform_id": platform_id
+                })
+
+        db.commit()
+
         return {"status": "Post created", "post_id": post_id}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
+# Update an existing post
 @router.put("/{post_id}")
 def update_post(post_id: int, post: PostCreate, db: Session = Depends(get_db)):
     try:
+        # Update the post with creator information
         db.execute(text("""
             UPDATE Posts
             SET Name = :name,
                 DateOfDeath = :dod,
                 Content = :content,
                 CreatedBy = :created_by
-            WHERE PostID = :id
+            WHERE PostID = :post_id
         """), {
-            "id": post_id,
             "name": post.name,
             "dod": post.date_of_death,
             "content": post.content,
-            "created_by": post.created_by
+            "created_by": post.created_by,  # Add the creator ID
+            "post_id": post_id
         })
+
+        # Replace images
+        replace_post_images(db, post_id, post.images)
+        
+        # Replace platform associations
+        if post.platforms:
+            # Delete existing platform associations
+            db.execute(text("""
+                DELETE FROM PostDistributions
+                WHERE PostID = :post_id
+            """), {
+                "post_id": post_id
+            })
+            
+            # Add new platform associations
+            for platform_id in post.platforms:
+                db.execute(text("""
+                    INSERT INTO PostDistributions (PostID, PlatformID)
+                    VALUES (:post_id, :platform_id)
+                """), {
+                    "post_id": post_id,
+                    "platform_id": platform_id
+                })
+
         db.commit()
-        return {"status": "Post updated"}
+
+        return {"status": "Post updated", "post_id": post_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{post_id}")
+def get_post(post_id: int, db: Session = Depends(get_db)):
+    try:
+        # Get post with creator username
+        query = """
+            SELECT p.*, u.Username as CreatorUsername
+            FROM Posts p
+            LEFT JOIN Users u ON p.CreatedBy = u.UserID
+            WHERE p.PostID = :post_id
+        """
+        post = db.execute(text(query), {"post_id": post_id}).mappings().first()
+        
+        if not post:
+            raise HTTPException(status_code=404, detail="Post not found")
+            
+        # Get images for the post
+        images_query = """
+            SELECT i.ImageID, i.URL, i.Source
+            FROM Images i
+            JOIN PostImages pi ON i.ImageID = pi.ImageID
+            WHERE pi.PostID = :post_id
+        """
+        images = db.execute(text(images_query), {"post_id": post_id}).mappings().all()
+        
+        # Get platforms for the post
+        platforms_query = """
+            SELECT p.PlatformID, p.Name, p.PlatformURL, p.IconURL
+            FROM SocialMediaPlatforms p
+            JOIN PostDistributions d ON p.PlatformID = d.PlatformID
+            WHERE d.PostID = :post_id
+        """
+        platforms = db.execute(text(platforms_query), {"post_id": post_id}).mappings().all()
+        
+        # Combine post with images and platforms
+        result = dict(post)
+        result["images"] = list(images)
+        result["platforms"] = list(platforms)
+        
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -181,3 +278,31 @@ def get_post_images(post_id: int, db: Session = Depends(get_db)):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading images: {e}")
+    
+def replace_post_images(db: Session, post_id: int, image_urls: List[str]):
+    # 1. Delete all PostImages for this PostID
+    db.execute(text("""
+        DELETE FROM PostImages WHERE PostID = :post_id
+    """), {"post_id": post_id})
+
+    # 2. (Optional cleanup) Delete orphaned Images
+    db.execute(text("""
+        DELETE FROM Images
+        WHERE ImageID NOT IN (SELECT ImageID FROM PostImages)
+    """))
+
+    # 3. Insert new images and link to post
+    for url in image_urls:
+        # Insert into Images
+        db.execute(text("""
+            INSERT INTO Images (URL, Source)
+            VALUES (:url, :source)
+        """), {"url": url, "source": "Uploaded by user"})
+
+        image_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+
+        # Insert into PostImages
+        db.execute(text("""
+            INSERT INTO PostImages (PostID, ImageID)
+            VALUES (:post_id, :image_id)
+        """), {"post_id": post_id, "image_id": image_id})
