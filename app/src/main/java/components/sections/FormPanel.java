@@ -37,6 +37,7 @@ public class FormPanel extends JPanel {
     
     // UI Components - Buttons
     private JButton generateButton;
+    private JButton manualInputButton;
     private JButton saveButton;
     private JButton deleteButton;
     
@@ -215,8 +216,25 @@ public class FormPanel extends JPanel {
         
         JPanel generateButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         generateButtonPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        manualInputButton = new JButton("Manual Input");
+        manualInputButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        manualInputButton.addActionListener(e -> {
+            aiContainer.setVisible(true);
+            additionalContentPanel.setVisible(true);
+            saveButton.setVisible(true);
+            deleteButton.setVisible(false);
+            aiContentArea.setText("");
+            aiContentArea.setEditable(true);
+            manualInputButton.setVisible(false);  // hide itself after click
+            revalidate();
+            repaint();
+        });
+
         generateButtonPanel.add(generateButton);
+        generateButtonPanel.add(manualInputButton);
         add(generateButtonPanel);
+
         
         add(Box.createVerticalStrut(10));
         add(aiContainer);
@@ -336,6 +354,8 @@ public class FormPanel extends JPanel {
         
         // Show delete button only for existing posts
         deleteButton.setVisible(currentPostData.postId > 0);
+        manualInputButton.setVisible(false);
+
         
         // Update current post data
         currentPostData.name = name;
@@ -427,8 +447,42 @@ public class FormPanel extends JPanel {
                 return;
             }
             
+            // Get post ID from result
             int postId = postResult.postId;
-            handleSuccessfulSave(postId, postResult);
+            System.out.println("DEBUG - FormPanel received post ID from save result: " + postId);
+            
+            // Check if we have a valid post ID
+            if (postId > 0) {
+                // Update current post data
+                currentPostData.postId = postId;
+                
+                // Set the post ID in the image uploader for future delete operations
+                imageUploader.setCurrentPostId(postId);
+                
+                // Update platform selections
+                updatePlatformsForPost(postId);
+                
+                // Show delete button (now we have a valid post ID)
+                deleteButton.setVisible(true);
+                
+                // Images are already linked on the server side in the replace_post_images method
+                // so we don't need to process images here
+                finalizeSaveOperation(postResult);
+            } else {
+                // No valid post ID, but operation was successful
+                System.out.println("DEBUG - Warning: Save was successful but no valid post ID returned");
+                
+                // Show a warning to the user
+                JOptionPane.showMessageDialog(
+                    FormPanel.this,
+                    "Post saved successfully, but the system couldn't retrieve the post ID. Some features may not work correctly.",
+                    "Warning",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                
+                setButtonsEnabled(true);
+                saveButton.setText("Save Post");
+            }
         });
     }
     
@@ -450,16 +504,21 @@ public class FormPanel extends JPanel {
         // Update current post data with the new post ID
         currentPostData.postId = postId;
         
-        // Update platform selections
-        updatePlatformsForPost(postId);
+        // Update the image uploader's post ID first
+        imageUploader.setCurrentPostId(postId);
         
-        // Update delete button visibility (now we have a valid post ID)
-        deleteButton.setVisible(true);
-        
-        System.out.println("DEBUG - After updating currentPostData - Post ID: " + currentPostData.postId);
-        System.out.println("DEBUG - After saving post - Image URLs: " + currentPostData.imagePaths);
-        
-        finalizeSaveOperation(postResult);
+        // Now process images if there are any
+        if (!currentPostData.imagePaths.isEmpty()) {
+            processImages(postId, postResult);
+        } else {
+            // Update platform selections
+            updatePlatformsForPost(postId);
+            
+            // Update delete button visibility (now we have a valid post ID)
+            deleteButton.setVisible(true);
+            
+            finalizeSaveOperation(postResult);
+        }
     }
     
     /**
@@ -666,9 +725,10 @@ public class FormPanel extends JPanel {
         
         // First save the image
         ImageService.addImage(imageUrl, "", imageResult -> {
-            if (imageResult.success) {
+            if (imageResult.success && imageResult.imageId > 0) {
                 // Then link it to the post
                 int imageId = imageResult.imageId;
+                // Ensure we're using the correct post ID
                 linkImageToPost(imageId, postId, imagesProcessed, totalImages, hasErrors, postResult);
             } else {
                 handleImageAddError(imageUrl, imageResult.message, imagesProcessed, totalImages, hasErrors, postResult);
@@ -762,9 +822,9 @@ public class FormPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         
         // Add warning icon and message
-        JLabel iconLabel = new JLabel(UIManager.getIcon("OptionPane.warningIcon"));
-        panel.add(iconLabel, BorderLayout.WEST);
-        
+//        JLabel iconLabel = new JLabel(UIManager.getIcon("OptionPane.warningIcon"));
+//        panel.add(iconLabel, BorderLayout.WEST);
+//        
         JPanel messagePanel = new JPanel(new BorderLayout());
         JLabel warningLabel = new JLabel("<html><b>Warning: This action cannot be undone!</b></html>");
         warningLabel.setForeground(DANGER_COLOR);
@@ -993,6 +1053,8 @@ public class FormPanel extends JPanel {
         generateButton.setText("Generate New Content");
         generateButton.setEnabled(true);
         
+        manualInputButton.setVisible(false);
+        
         revalidate();
         repaint();
     }
@@ -1021,6 +1083,8 @@ public class FormPanel extends JPanel {
             deleteButton.setVisible(false);
             generateButton.setText("Generate Post");
             generateButton.setEnabled(true);
+            
+            manualInputButton.setVisible(true);
             
             // Reset internal state variables
             currentPostData = new PostService.PostData();

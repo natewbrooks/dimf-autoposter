@@ -421,18 +421,17 @@ public class PostService {
         System.out.println("DEBUG - PostService.savePost - Post ID: " + postData.postId);
         System.out.println("DEBUG - PostService.savePost - Image Paths: " + postData.imagePaths);
         
-        // Get current user information from UserService
+        // Get current user information
         int currentUserId = UserService.getCurrentUserId();
         String currentUsername = UserService.getCurrentUsername();
-        System.out.println("DEBUG - PostService.savePost - Current User ID: " + currentUserId);
-        System.out.println("DEBUG - PostService.savePost - Current Username: " + currentUsername);
         
         // Update creator information if needed
         if (postData.creatorUserId <= 0 && currentUserId > 0) {
             postData.creatorUserId = currentUserId;
         }
         
-        if ((postData.creatorUsername == null || postData.creatorUsername.isEmpty()) && currentUsername != null && !currentUsername.isEmpty()) {
+        if ((postData.creatorUsername == null || postData.creatorUsername.isEmpty()) && 
+                currentUsername != null && !currentUsername.isEmpty()) {
             postData.creatorUsername = currentUsername;
         }
         
@@ -460,7 +459,7 @@ public class PostService {
                     conn.setRequestProperty("Content-Type", "application/json");
                     conn.setDoOutput(true);
                     
-                    // Add auth token from UserService
+                    // Add auth token
                     String token = UserService.getCurrentToken();
                     if (token != null && !token.isEmpty()) {
                         conn.setRequestProperty("Authorization", "Bearer " + token);
@@ -472,14 +471,13 @@ public class PostService {
                     requestObj.put("date_of_death", postData.dateOfDeath);
                     requestObj.put("content", postData.content);
                     
-                    // Add creator ID - use the ID from the post data or current user
+                    // Add creator information
                     if (postData.creatorUserId > 0) {
                         requestObj.put("created_by", postData.creatorUserId);
                     } else if (currentUserId > 0) {
                         requestObj.put("created_by", currentUserId);
                     }
                     
-                    // Add creator username - use the username from post data or current user
                     if (postData.creatorUsername != null && !postData.creatorUsername.isEmpty()) {
                         requestObj.put("creator_username", postData.creatorUsername);
                     } else if (currentUsername != null && !currentUsername.isEmpty()) {
@@ -500,9 +498,6 @@ public class PostService {
                     }
                     requestObj.put("images", imagesArray);
                     
-                    System.out.println("DEBUG - PostService.savePost - JSON payload images: " + imagesArray);
-                    
-                    // Convert to JSON string
                     String requestBody = requestObj.toString();
                     System.out.println("DEBUG - PostService.savePost - Full JSON payload: " + requestBody);
 
@@ -514,32 +509,46 @@ public class PostService {
                     int responseCode = conn.getResponseCode();
                     System.out.println("DEBUG - PostService.savePost - Response code: " + responseCode);
                     
+                    // Read response body regardless of success/failure
+                    StringBuilder responseBuilder = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(
+                                    responseCode >= 200 && responseCode < 300 
+                                    ? conn.getInputStream() 
+                                    : conn.getErrorStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            responseBuilder.append(line);
+                        }
+                    }
+                    
+                    String response = responseBuilder.toString();
+                    System.out.println("DEBUG - PostService.savePost - Response: " + response);
+                    
                     if (responseCode >= 200 && responseCode < 300) {
-                        // Success
-                        BufferedReader in = new BufferedReader(
-                            new InputStreamReader(conn.getInputStream()));
-                        StringBuilder responseBuilder = new StringBuilder();
-                        String inputLine;
-                        while ((inputLine = in.readLine()) != null) {
-                            responseBuilder.append(inputLine);
-                        }
-                        in.close();
-                        
-                        String response = responseBuilder.toString();
-                        System.out.println("DEBUG - PostService.savePost - Response: " + response);
-                        
-                        JSONObject responseJson = new JSONObject(response);
-                        
-                        // Extract post_id from response correctly
+                        // Successful response
                         int newPostId = -1;
-                        if (responseJson.has("post_id")) {
-                            newPostId = responseJson.getInt("post_id");
-                        } else if (isUpdate) {
-                            // If updating, use the existing post ID
-                            newPostId = postData.postId;
+                        try {
+                            JSONObject responseJson = new JSONObject(response);
+                            
+                            // Try different possible field names for post ID
+                            if (responseJson.has("post_id")) {
+                                newPostId = responseJson.getInt("post_id");
+                            } else if (responseJson.has("PostID")) {
+                                newPostId = responseJson.getInt("PostID");
+                            } else if (isUpdate) {
+                                // For updates, use existing ID
+                                newPostId = postData.postId;
+                            }
+                        } catch (Exception e) {
+                            System.out.println("DEBUG - Error parsing response JSON: " + e.getMessage());
                         }
                         
-                        System.out.println("DEBUG - PostService.savePost - New Post ID: " + newPostId);
+                        // If we still don't have a post ID, try to get it by querying for the post
+                        if (newPostId <= 0) {
+                            newPostId = retrievePostIdByName(postData.name);
+                            System.out.println("DEBUG - Retrieved post ID by name: " + newPostId);
+                        }
                         
                         SaveResult result = new SaveResult();
                         result.success = true;
@@ -548,33 +557,30 @@ public class PostService {
                         
                         return result;
                     } else {
-                        // Error
-                        BufferedReader errorReader = new BufferedReader(
-                            new InputStreamReader(conn.getErrorStream()));
-                        StringBuilder errorResponse = new StringBuilder();
-                        String errorLine;
-                        while ((errorLine = errorReader.readLine()) != null) {
-                            errorResponse.append(errorLine);
+                        // If response indicates post created but ID retrieval failed, try to retrieve ID separately
+                        if (responseCode == 500 && response.contains("Failed to retrieve inserted post ID")) {
+                            int retrievedPostId = retrievePostIdByName(postData.name);
+                            if (retrievedPostId > 0) {
+                                SaveResult result = new SaveResult();
+                                result.success = true;
+                                result.message = "Post created, but ID had to be retrieved separately";
+                                result.postId = retrievedPostId;
+                                return result;
+                            }
                         }
-                        errorReader.close();
                         
-                        String error = errorResponse.toString();
-                        System.out.println("DEBUG - PostService.savePost - Error response: " + error);
-                        
+                        // General error response
                         SaveResult result = new SaveResult();
                         result.success = false;
-                        result.message = "Error: " + responseCode + " - " + error;
-                        
+                        result.message = "Error: " + responseCode + " - " + response;
                         return result;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                    System.out.println("DEBUG - PostService.savePost - Exception: " + e.getMessage());
                     
                     SaveResult result = new SaveResult();
                     result.success = false;
                     result.message = "Error: " + e.getMessage();
-                    
                     return result;
                 }
             }
@@ -586,7 +592,6 @@ public class PostService {
                     callback.accept(result);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    System.out.println("DEBUG - PostService.savePost - Exception in done: " + e.getMessage());
                     SaveResult result = new SaveResult();
                     result.success = false;
                     result.message = "Error: " + e.getMessage();
@@ -596,6 +601,55 @@ public class PostService {
         };
 
         saveWorker.execute();
+    }
+
+    // Helper method to retrieve post ID by name when server fails to return it
+    private static int retrievePostIdByName(String name) {
+        System.out.println("DEBUG - Attempting to retrieve post ID by name: " + name);
+        try {
+            // Create URL for getting all posts
+            URL url = new URL(API_BASE_URL + "/posts/");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            
+            // Add auth token
+            String token = UserService.getCurrentToken();
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            
+            int responseCode = conn.getResponseCode();
+            if (responseCode == 200) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = in.readLine()) != null) {
+                    response.append(line);
+                }
+                in.close();
+                
+                JSONArray posts = new JSONArray(response.toString());
+                
+                // Look for the post with matching name, get the most recent
+                int mostRecentPostId = -1;
+                for (int i = 0; i < posts.length(); i++) {
+                    JSONObject post = posts.getJSONObject(i);
+                    if (post.getString("Name").equals(name)) {
+                        int currentPostId = post.getInt("PostID");
+                        if (currentPostId > mostRecentPostId) {
+                            mostRecentPostId = currentPostId;
+                        }
+                    }
+                }
+                
+                System.out.println("DEBUG - Retrieved post ID: " + mostRecentPostId + " for name: " + name);
+                return mostRecentPostId;
+            }
+        } catch (Exception e) {
+            System.out.println("DEBUG - Error retrieving post ID by name: " + e.getMessage());
+        }
+        return -1;
     }
     
     /**

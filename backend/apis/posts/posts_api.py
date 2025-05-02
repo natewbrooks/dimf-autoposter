@@ -40,11 +40,25 @@ def create_post(post: PostCreate, db: Session = Depends(get_db)):
             "name": post.name,
             "dod": post.date_of_death,
             "content": post.content,
-            "created_by": post.created_by,  # Add the creator ID
+            "created_by": post.created_by,
         })
-        db.commit()
 
-        post_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+        # Get the post ID immediately after insert, before any other inserts
+        post_id = result.lastrowid
+
+        
+        if not post_id:
+            # Fallback method: try to find the post by name
+            result = db.execute(text("""
+                SELECT PostID FROM Posts 
+                WHERE Name = :name 
+                ORDER BY PostID DESC LIMIT 1
+            """), {"name": post.name}).first()
+            
+            post_id = result[0] if result else None
+            
+        if not post_id:
+            raise Exception("Failed to retrieve inserted post ID")
 
         # Insert Images + Link to Post
         replace_post_images(db, post_id, post.images)
@@ -280,29 +294,35 @@ def get_post_images(post_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error loading images: {e}")
     
 def replace_post_images(db: Session, post_id: int, image_urls: List[str]):
-    # 1. Delete all PostImages for this PostID
-    db.execute(text("""
-        DELETE FROM PostImages WHERE PostID = :post_id
-    """), {"post_id": post_id})
-
-    # 2. (Optional cleanup) Delete orphaned Images
-    db.execute(text("""
-        DELETE FROM Images
-        WHERE ImageID NOT IN (SELECT ImageID FROM PostImages)
-    """))
-
-    # 3. Insert new images and link to post
-    for url in image_urls:
-        # Insert into Images
+    try:
+        # 1. Delete all PostImages for this PostID
         db.execute(text("""
-            INSERT INTO Images (URL, Source)
-            VALUES (:url, :source)
-        """), {"url": url, "source": "Uploaded by user"})
+            DELETE FROM PostImages WHERE PostID = :post_id
+        """), {"post_id": post_id})
 
-        image_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+        # 2. Insert new images and link to post
+        for url in image_urls:
+            # Check if image already exists
+            existing_image = db.execute(text("""
+                SELECT ImageID FROM Images WHERE URL = :url
+            """), {"url": url}).first()
+            
+            if existing_image:
+                image_id = existing_image[0]
+            else:
+                # Insert into Images
+                db.execute(text("""
+                    INSERT INTO Images (URL, Source)
+                    VALUES (:url, :source)
+                """), {"url": url, "source": "Uploaded by user"})
 
-        # Insert into PostImages
-        db.execute(text("""
-            INSERT INTO PostImages (PostID, ImageID)
-            VALUES (:post_id, :image_id)
-        """), {"post_id": post_id, "image_id": image_id})
+                image_id = db.execute(text("SELECT LAST_INSERT_ID() as id")).first()[0]
+            
+            # Insert into PostImages
+            db.execute(text("""
+                INSERT INTO PostImages (PostID, ImageID)
+                VALUES (:post_id, :image_id)
+            """), {"post_id": post_id, "image_id": image_id})
+    except Exception as e:
+        print(f"Error in replace_post_images: {str(e)}")
+        raise e

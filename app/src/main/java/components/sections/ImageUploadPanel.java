@@ -246,10 +246,21 @@ public class ImageUploadPanel extends JPanel {
             for (ImageService.ImageData image : images) {
                 addImage(image.url, image.source != null ? image.source : "");
                 // Store the image ID
-                imageIds.put(image.url, image.imageId);
+                if (image.imageId > 0) {
+                    imageIds.put(image.url, image.imageId);
+                    System.out.println("DEBUG - ImageUploadPanel stored image ID: " + image.imageId + " for URL: " + image.url);
+                }
             }
         } else {
             addPlaceholder();
+        }
+    }
+    
+    // Add this method to ImageUploadPanel class
+    public void associateImageWithId(String url, int imageId) {
+        if (url != null && !url.isEmpty() && imageId > 0) {
+            System.out.println("DEBUG - ImageUploadPanel associating URL: " + url + " with ID: " + imageId);
+            imageIds.put(url, imageId);
         }
     }
 

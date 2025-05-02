@@ -84,10 +84,6 @@ public class Main {
         // Load posts - using PostService
         PostService.loadPosts(previousPostsModel);
         
-        downloadExcelButton.addActionListener(e -> {
-            JOptionPane.showMessageDialog(frame, "TODO: Export Excel logic here.");
-        });
-        
         frame.setVisible(true);
     }
 }

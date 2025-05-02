@@ -34,7 +34,8 @@ packages = [
     'urllib3',
     'certifi',
     'greenlet',
-    'pymysql'
+    'pymysql',
+    'cryptography'
 ]
 
 # Modules that aren't structured as packages

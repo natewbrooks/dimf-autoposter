@@ -60,3 +60,23 @@ def delete_image(image_id: int, db: Session = Depends(get_db)):
     db.execute(text("DELETE FROM Images WHERE ImageID = :id"), {"id": image_id})
     db.commit()
     return {"status": "Image deleted"}
+
+@router.get("/find")
+def find_image_by_url(url: str, db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT ImageID FROM Images WHERE URL = :url
+        """), {"url": url}).first()
+        
+        if result:
+            return {"status": "Image found", "image_id": result[0]}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "Image not found"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
