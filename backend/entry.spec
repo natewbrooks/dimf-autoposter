@@ -12,7 +12,6 @@ local_modules = [
 # Environment files
 env_files = [
     '.env',           # Main .env file
-    '.env.production',# Production env file (if you have one)
 ]
 
 # Include all dependencies from your requirements.txt

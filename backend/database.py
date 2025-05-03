@@ -3,37 +3,80 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+# Load environment variables
 load_dotenv()
 
+# Get DATABASE_URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,
-    pool_recycle=3600,
-    pool_pre_ping=True
-)
+# Global engine and session variables - will be None if database connection fails
+engine = None
+session = None
 
-session = sessionmaker(engine)
+def test_connection():
+    """Test database connection and print result"""
+    global engine
+    
+    try:
+        # Only try to create engine if DATABASE_URL is set
+        if not DATABASE_URL:
+            print("[DATABASE] DATABASE_URL not set in environment variables")
+            return False
+            
+        # Create engine if it doesn't exist yet
+        if engine is None:
+            engine = create_engine(
+                DATABASE_URL,
+                pool_size=20,
+                pool_recycle=3600,
+                pool_pre_ping=True,
+                connect_args={"connect_timeout": 10}  # 10 seconds timeout
+            )
+            
+        # Test connection
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("[DATABASE] Successfully connected to the database.")
+        
+        # Create session factory if connection was successful
+        global session
+        if session is None:
+            session = sessionmaker(engine)
+            
+        return True
+    except Exception as e:
+        print("[DATABASE] Connection failed:", str(e))
+        engine = None  # Reset engine on failure
+        session = None  # Reset session on failure
+        return False
 
 def get_db():
+    """Get database session - returns None if database is not available"""
+    global session
+    
+    # If no session factory, yield None (database unavailable)
+    if session is None:
+        yield None
+        return
+        
+    # Otherwise create and yield a session
     db = session()
     try:
         yield db
     finally:
         db.close()
 
-
-def test_connection():
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        print("[DATABASE] Successfully connected to the database.")
-    except Exception as e:
-        print("[DATABASE] Connection failed:", str(e))
-
 def run_init_sql():
-    """Initialize database tables if they don't exist"""
+    """Initialize database tables if they don't exist
+    Skips if database connection failed
+    """
+    global engine
+    
+    # Skip if no engine (database connection failed)
+    if engine is None:
+        print("[DATABASE] Skipping database initialization - database unavailable")
+        return False
+        
     try:
         # Check if tables exist
         with engine.connect() as conn:
@@ -136,10 +179,11 @@ def run_init_sql():
                     
                     conn.commit()
                     print("[DATABASE] All tables created successfully.")
+                return True
             except Exception as e:
                 conn.rollback()
                 print(f"[DATABASE] Failed to initialize: {str(e)}")
-                raise
+                return False
     except Exception as e:
         print(f"[DATABASE] Error during initialization: {str(e)}")
-        raise
+        return False
