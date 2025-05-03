@@ -7,7 +7,16 @@ import java.awt.*;
 
 public class Main {
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(Main::initializeApplication);
+    	try {
+            SwingUtilities.invokeLater(Main::initializeApplication);
+        } catch (Exception e) {
+            e.printStackTrace();
+            try (java.io.PrintWriter out = new java.io.PrintWriter("error.log")) {
+                e.printStackTrace(out);
+            } catch (java.io.IOException ioEx) {
+                ioEx.printStackTrace();
+            }
+        }
     }
     
     private static void initializeApplication() {
@@ -39,7 +48,7 @@ public class Main {
         
         // If we get here, user is authenticated
         // Now initialize and show the main application
-        initializeMainApp(frame);
+        SwingUtilities.invokeLater(() -> initializeMainApp(frame));
     }
     
     private static void initializeMainApp(JFrame frame) {
