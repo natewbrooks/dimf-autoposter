@@ -2,19 +2,18 @@
 import os
 from PyInstaller.utils.hooks import collect_all
 
-# List all the local modules your app depends on
+# Local app modules
 local_modules = [
     'main.py',
     'database.py',
-    # Add any other .py files your app needs
 ]
 
-# Environment files
+# Put .env inside a config folder in the bundled EXE
 env_files = [
-    '.env',           # Main .env file
+    ('.env', 'config')
 ]
 
-# Include all dependencies from your requirements.txt
+# Dependencies from requirements.txt
 packages = [
     'uvicorn',
     'fastapi',
@@ -37,7 +36,7 @@ packages = [
     'cryptography'
 ]
 
-# Modules that aren't structured as packages
+# Modules that aren’t structured as packages
 modules = [
     'python-dotenv',
     'typing_extensions',
@@ -45,50 +44,37 @@ modules = [
     'bcrypt'
 ]
 
-# Add all your local modules as data files
+# Add local modules as data files
 all_datas = [(module, '.') for module in local_modules]
-# Add environment files
-all_datas.extend([(env_file, '.') for env_file in env_files if os.path.exists(env_file)])
+
+# Add the .env file to the config directory inside the EXE
+if os.path.exists('.env'):
+    all_datas.append(('.env', 'config'))
 
 all_binaries = []
 all_hiddenimports = [
-    'apis',  # Include the apis package
-    'apis.posts'  # Include the posts subpackage
+    'apis',
+    'apis.posts'
 ]
 
 # Handle importing all the Python files in the 'apis' directory
 apis_dir = 'apis'
 if os.path.exists(apis_dir) and os.path.isdir(apis_dir):
-    # Include the apis directory and its __init__.py
     all_datas.append((apis_dir, apis_dir))
-    
-    # Check for posts subdirectory
     posts_dir = os.path.join(apis_dir, 'posts')
     if os.path.exists(posts_dir) and os.path.isdir(posts_dir):
-        # Include the posts directory and its __init__.py
         all_datas.append((posts_dir, posts_dir))
-        
-        # Add all Python files in the posts directory
-        posts_files = [os.path.join(posts_dir, f) for f in os.listdir(posts_dir) 
-                    if f.endswith('.py') and os.path.isfile(os.path.join(posts_dir, f))]
-        
+        posts_files = [os.path.join(posts_dir, f) for f in os.listdir(posts_dir)
+                       if f.endswith('.py') and os.path.isfile(os.path.join(posts_dir, f))]
         for posts_file in posts_files:
-            # Add as data file with directory structure preserved
             all_datas.append((posts_file, os.path.dirname(posts_file)))
-            
-            # Add as hidden import
             module_path = posts_file.replace('\\', '.').replace('/', '.').replace('.py', '')
             all_hiddenimports.append(module_path)
-    
-    # Add all Python files directly in the apis directory
-    api_files = [os.path.join(apis_dir, f) for f in os.listdir(apis_dir) 
-                if f.endswith('.py') and os.path.isfile(os.path.join(apis_dir, f))]
-    
+
+    api_files = [os.path.join(apis_dir, f) for f in os.listdir(apis_dir)
+                 if f.endswith('.py') and os.path.isfile(os.path.join(apis_dir, f))]
     for api_file in api_files:
-        # Add as data file with directory structure preserved
         all_datas.append((api_file, os.path.dirname(api_file)))
-        
-        # Add as hidden import
         module_path = api_file.replace('\\', '.').replace('/', '.').replace('.py', '')
         all_hiddenimports.append(module_path)
 
@@ -102,11 +88,8 @@ for package in packages:
     except Exception as e:
         print(f"Warning: Error collecting {package}: {e}")
 
-# Add the modules that aren't structured as packages
 all_hiddenimports.extend(modules)
-# Also add alternative underscore/hyphen versions
 all_hiddenimports.extend([m.replace('-', '_') for m in modules])
-
 # Add specific imports that might be missed
 additional_imports = [
     'uvicorn.lifespan',
