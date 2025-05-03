@@ -3,33 +3,56 @@ import sys
 
 # Determine if running as executable or script
 if getattr(sys, 'frozen', False):
-    # Get the executable directory
+    # When running as executable (PyInstaller package)
     base_dir = os.path.dirname(sys.executable)
-    # Look for .env file in the executable directory
-    env_file = os.path.join(base_dir, '.env')
-    if os.path.exists(env_file):
-        print(f"[ENV] Loading .env file from: {env_file}")
-        try:
-            from dotenv import load_dotenv
-            load_dotenv(env_file)
-        except ImportError:
-            print("[ENV] dotenv module not found, reading .env file manually")
-            # Manual parsing of .env file
-            with open(env_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        key, value = line.split('=', 1)
-                        os.environ[key.strip()] = value.strip().strip('"\'')
-    else:
-        print(f"[ENV] .env file not found at {env_file}")
+    
+    # Try multiple possible locations for .env file
+    possible_env_locations = [
+        os.path.join(base_dir, '.env'),                   # Same directory as executable
+        os.path.join(os.path.dirname(base_dir), '.env'),  # Parent directory of executable
+        os.path.abspath('.env'),                          # Current working directory
+    ]
+    
+    env_loaded = False
+    for env_path in possible_env_locations:
+        if os.path.exists(env_path):
+            print(f"[ENV] Found .env file at: {env_path}")
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(env_path)
+                env_loaded = True
+                break
+            except ImportError:
+                print("[ENV] dotenv module not found, reading .env file manually")
+                # Manual parsing of .env file
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            try:
+                                key, value = line.split('=', 1)
+                                os.environ[key.strip()] = value.strip().strip('"\'')
+                            except ValueError:
+                                print(f"[ENV] Skipping invalid line in .env file: {line}")
+                env_loaded = True
+                break
+    
+    if not env_loaded:
+        print("[ENV] WARNING: No .env file found in any of the following locations:")
+        for loc in possible_env_locations:
+            print(f"  - {loc}")
 else:
     # Running as script
     try:
         from dotenv import load_dotenv
         load_dotenv()
+        print("[ENV] Loaded .env file in development mode")
     except ImportError:
-        print("[ENV] dotenv module not found")
+        print("[ENV] dotenv module not found in development mode")
+
+# Manually override DATABASE_URL for testing if needed
+# Uncomment the following line to use a local SQLite database for testing
+# os.environ["DATABASE_URL"] = "sqlite:///test.db"
 
 import uvicorn
 
@@ -43,7 +66,7 @@ if __name__ == "__main__":
             masked_url = parts[0].split(":")[0] + ":******@" + parts[1]
             print(f"[ENV] Database URL: {masked_url}")
         else:
-            print("[ENV] Database URL is set (no @ symbol)")
+            print(f"[ENV] Database URL is set: {db_url}")
     else:
         print("[ENV] DATABASE_URL environment variable is not set")
     
