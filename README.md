@@ -21,7 +21,7 @@ This project provides a Java Swing GUI and FastAPI backend for generating and ma
 3. Once the backend is running and connected, open:
 
    ```
-   frontend.jar
+   frontend.exe
    ```
 
    This launches the Java Swing GUI application.
