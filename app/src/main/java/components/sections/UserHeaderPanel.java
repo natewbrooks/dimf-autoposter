@@ -1,7 +1,18 @@
 package components.sections;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Font;
+import java.awt.Image;
+import java.io.IOException;
+import java.io.InputStream;
+
+import javax.imageio.ImageIO;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 
 public class UserHeaderPanel extends JPanel {
     private JLabel usernameLabel;
@@ -11,9 +22,19 @@ public class UserHeaderPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8)); // 8px left/right padding
 
         // Load and scale icon to 16x16
-        ImageIcon originalIcon = new ImageIcon(getClass().getResource("/images/user-icon.png"));
-        Image scaledImage = originalIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
-        ImageIcon scaledIcon = new ImageIcon(scaledImage);
+        ImageIcon scaledIcon = null;
+
+        try (InputStream is = getClass().getResourceAsStream("/resources/images/user-icon.png")) {
+            if (is != null) {
+                Image image = ImageIO.read(is);
+                Image scaledImage = image.getScaledInstance(16, 16, Image.SCALE_SMOOTH);
+                scaledIcon = new ImageIcon(scaledImage);
+            } else {
+                System.err.println("WARNING: /resources/images/user-icon.png not found in JAR.");
+            }
+        } catch (IOException e) {
+            System.err.println("ERROR loading /resources/images/user-icon.png: " + e.getMessage());
+        }
 
         // Create horizontal box to hold icon + username
         JPanel userBox = new JPanel();
