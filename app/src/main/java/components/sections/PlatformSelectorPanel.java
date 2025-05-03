@@ -1,11 +1,23 @@
 package components.sections;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.Timer;
 
 import components.SelectableImageButton;
 import lib.PlatformService;
@@ -93,11 +105,30 @@ public class PlatformSelectorPanel extends JPanel {
      */
     private void addPlatformButton(int id, String iconPath, String tooltip) {
         // Create ImageIcon based on whether it's a resource path or a URL
-        ImageIcon icon;
+        ImageIcon icon = null;
+        
         try {
             if (iconPath.startsWith("/")) {
                 // Resource path
-                icon = new ImageIcon(getClass().getResource(iconPath));
+                InputStream is = getClass().getResourceAsStream(iconPath);
+                if (is == null) {
+                    // Try without leading slash
+                    is = getClass().getResourceAsStream(iconPath.substring(1));
+                }
+                
+                if (is == null) {
+                    // Try with class loader
+                    is = getClass().getClassLoader().getResourceAsStream(iconPath.substring(1));
+                }
+                
+                if (is != null) {
+                    byte[] imageBytes = is.readAllBytes();
+                    icon = new ImageIcon(imageBytes);
+                    is.close();
+                } else {
+                    System.err.println("Could not find resource at path: " + iconPath);
+                    throw new Exception("Resource not found: " + iconPath);
+                }
             } else {
                 // URL (for future use)
                 icon = new ImageIcon(iconPath);
@@ -110,7 +141,8 @@ public class PlatformSelectorPanel extends JPanel {
             buttonContainer.add(button);
         } catch (Exception e) {
             // If icon can't be loaded, create a text button instead
-            System.err.println("Failed to load icon for platform: " + tooltip + ", path: " + iconPath);
+            System.err.println("Failed to load icon for platform: " + tooltip + 
+                              ", path: " + iconPath + " - " + e.getMessage());
             JButton fallbackButton = new JButton(tooltip);
             fallbackButton.setForeground(Color.RED);
             buttonContainer.add(fallbackButton);
