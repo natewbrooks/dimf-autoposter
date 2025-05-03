@@ -14,10 +14,10 @@ from apis import (
 from apis.posts import (
     posts_api,
     post_images_api,
-    post_status_api,
+    # post_status_api,
     post_distributions_api
 )
-from database import test_connection
+from database import test_connection, run_init_sql
 
 app = FastAPI()
 
@@ -42,12 +42,17 @@ app.add_middleware(
 )
         
         
- # Create default user on startup if no user exist
+# Startup event
 @app.on_event("startup")
-def create_default_user():
+def startup_event():
+    # Step 1: Test DB connection
     test_connection()
-    db = next(get_db())
 
+    # Step 2: Run init.sql
+    run_init_sql()
+
+    # Step 3: Create default user if no user exists
+    db = next(get_db())
     try:
         auth_api.create_user(
             username="user",
@@ -59,7 +64,7 @@ def create_default_user():
     except HTTPException as e:
         print(f"[DEFAULT USER EXISTS] {e.detail}")
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"[DEFAULT USER ERROR] {e}")
         
 # Base routers
 app.include_router(
@@ -107,11 +112,11 @@ app.include_router(
     tags=["Posts"],
 )
 
-app.include_router(
-    post_status_api.router,
-    prefix="/api/posts/statuses",
-    tags=["Post Statuses"],
-)
+# app.include_router(
+#     post_status_api.router,
+#     prefix="/api/posts/statuses",
+#     tags=["Post Statuses"],
+# )
 
 app.include_router(
     post_images_api.router,
