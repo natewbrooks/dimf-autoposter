@@ -266,7 +266,6 @@
 	        }).start();
 	    }
 	    
-	 // Add this method to the ImageService class
 	    public static void searchGoogleImages(String query, Consumer<ImageResult> callback) {
 	        System.out.println("DEBUG - ImageService.searchGoogleImages - Query: " + query);
 	        

@@ -27,7 +27,7 @@ import lib.PostService;
 public class FormPanel extends JPanel {
     // Constants
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final Color DANGER_COLOR = new Color(220, 53, 69); // Bootstrap "danger" red
+    private static final Color DANGER_COLOR = new Color(220, 53, 69); // "danger" red
     
     // UI Components - Form Fields
     private JTextField nameField;

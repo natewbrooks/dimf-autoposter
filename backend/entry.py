@@ -28,11 +28,11 @@ def load_embedded_env():
 
 load_embedded_env()
 
-# Optional: print masked DB URL
+# Print masked DB URL
 db_url = os.environ.get("DATABASE_URL", "Not set")
 if db_url != "Not set" and "@" in db_url:
     user_info, host_info = db_url.split("@")
-    user, _ = user_info.split(":", 1)  # FIXED HERE
+    user, _ = user_info.split(":", 1)
     masked_url = f"{user}:****@{host_info}"
     print(f"[ENV] DATABASE_URL: {masked_url}")
 else:

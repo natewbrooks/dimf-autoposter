@@ -60,7 +60,7 @@ public class Main {
         
         String username = UserService.getCurrentUsername();
         
-        // Sidebar (WEST)
+        // Left-side panel
         DefaultListModel<String> previousPostsModel = new DefaultListModel<>();
         JButton downloadExcelButton = new JButton("Download Excel");
         

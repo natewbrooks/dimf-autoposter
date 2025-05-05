@@ -41,7 +41,7 @@ app.add_middleware(
 # Startup event
 @app.on_event("startup")
 def startup_event():
-    # Step 1: Test DB connection - will initialize engine if successful
+    # Test DB connection - will initialize engine if successful
     connection_successful = test_connection()
     
     # Skip database operations if connection failed
@@ -49,13 +49,12 @@ def startup_event():
         print("[STARTUP] Skipping database initialization and user creation")
         return
         
-    # Step 2: Run init.sql only if connection was successful
+    # Run sql init only if connection was successful
     run_init_sql()
     
-    # Step 3: Create default user only if connection was successful
+    # Create default user only if connection was successful
     try:
         db = next(get_db())
-        # Only proceed if db is not None
         if db is not None:
             try:
                 auth_api.create_user(

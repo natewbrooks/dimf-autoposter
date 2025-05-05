@@ -14,3 +14,5 @@ def create_status(user_id: int, platform_id: int, post_id: int, current_status: 
     db.execute(text("INSERT INTO Status (UserID, PlatformID, PostID, CurrentStatus) VALUES (:uid, :pid, :postid, :status)"), {"uid": user_id, "pid": platform_id, "postid": post_id, "status": current_status})
     db.commit()
     return {"status": "Status entry added"}
+
+# NOT USED RIGHT NOW

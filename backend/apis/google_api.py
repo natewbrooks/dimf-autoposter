@@ -58,7 +58,6 @@ def perform_google_images_search(q: str):
         if "images_results" not in results:
             raise HTTPException(status_code=404, detail="No image results found.")
 
-        # Get only the first 5 thumbnails
         thumbnails = []
         for result in results["images_results"][:5]:  # Limit to first 5 results
             thumbnails.append(result.get("thumbnail", ""))

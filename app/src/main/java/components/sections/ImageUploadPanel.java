@@ -256,7 +256,6 @@ public class ImageUploadPanel extends JPanel {
         }
     }
     
-    // Add this method to ImageUploadPanel class
     public void associateImageWithId(String url, int imageId) {
         if (url != null && !url.isEmpty() && imageId > 0) {
             System.out.println("DEBUG - ImageUploadPanel associating URL: " + url + " with ID: " + imageId);

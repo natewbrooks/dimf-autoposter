@@ -113,7 +113,6 @@ public class SidebarPanel extends JPanel {
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Save Excel File");
 
-            // ✅ Pre-set default file name
             fileChooser.setSelectedFile(new java.io.File("dimf-posts.xlsx"));
 
             int userSelection = fileChooser.showSaveDialog(this);

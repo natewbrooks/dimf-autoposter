@@ -34,7 +34,7 @@ def login_user(data: LoginRequest, db: Session = Depends(get_db)):
     # Build response that matches what Java expects
     return {
         "status": "Login successful",
-        "token": "sample-token-" + str(result["UserID"]),   # <--- Add token here
+        "token": "sample-token-" + str(result["UserID"]),   # Fake token, will be JWT in real implementation
         "user": {
             "UserID": result["UserID"],
             "Username": result["Username"],
@@ -74,7 +74,7 @@ def register_user(data: RegisterRequest, db: Session = Depends(get_db)):
         {"username": data.username}
     ).mappings().first()
     
-    # Return user info and token (assuming you'll implement token generation later)
+    # Return user info and token
     return {
         "status": "Registration successful",
         "user": {
@@ -82,7 +82,7 @@ def register_user(data: RegisterRequest, db: Session = Depends(get_db)):
             "Username": new_user["Username"],
             "Email": new_user["Email"]
         },
-        "token": "sample-token-" + str(new_user["UserID"])  # Replace with actual token generation
+        "token": "sample-token-" + str(new_user["UserID"]) 
     }
 
 # ---------- CRUD USERS ----------

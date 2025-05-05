@@ -108,7 +108,6 @@ public class ExportExcelService {
             // Create URL object with query parameter
             URL url = new URL(API_URL + "?filename=" + customFilename);
             
-            // Rest of the method is identical to above
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(10000);

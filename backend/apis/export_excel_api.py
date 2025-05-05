@@ -34,10 +34,10 @@ async def export_excel(
     filepath = os.path.join(TEMP_DIR, f"{filename}_{timestamp}.xlsx")
     
     try:
-        # Generate the Excel file using Python implementation
+        # Generate the Excel file
         export_to_excel(db, filepath)
         
-        # Schedule file cleanup (remove after some time)
+        # Schedule file cleanup
         background_tasks.add_task(cleanup_export_file, filepath, delay=3600)  # 1 hour
         
         # Set download filename (without the timestamp in the user-visible name)

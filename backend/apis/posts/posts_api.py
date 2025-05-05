@@ -48,7 +48,7 @@ def create_post(post: PostCreate, db: Session = Depends(get_db)):
 
         
         if not post_id:
-            # Fallback method: try to find the post by name
+            # Fallback method tries to find the post by name
             result = db.execute(text("""
                 SELECT PostID FROM Posts 
                 WHERE Name = :name 
@@ -295,12 +295,12 @@ def get_post_images(post_id: int, db: Session = Depends(get_db)):
     
 def replace_post_images(db: Session, post_id: int, image_urls: List[str]):
     try:
-        # 1. Delete all PostImages for this PostID
+        # Delete all PostImages for this PostID
         db.execute(text("""
             DELETE FROM PostImages WHERE PostID = :post_id
         """), {"post_id": post_id})
 
-        # 2. Insert new images and link to post
+        # Insert new images and link to post
         for url in image_urls:
             # Check if image already exists
             existing_image = db.execute(text("""

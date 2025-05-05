@@ -26,7 +26,7 @@ def test_connection():
                 pool_size=20,
                 pool_recycle=3600,
                 pool_pre_ping=True,
-                connect_args={"connect_timeout": 10}  # 10 seconds timeout
+                connect_args={"connect_timeout": 15}  # 15 second timeout
             )
             
         # Test connection

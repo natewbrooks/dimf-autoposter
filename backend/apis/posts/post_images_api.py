@@ -21,7 +21,7 @@ def add_post_image(link: PostImageLink, db: Session = Depends(get_db)):
 
 @router.delete("/")
 def remove_post_image(link: PostImageLink, db: Session = Depends(get_db)):
-    # First, get the image URL before deleting associations
+    # Get the image URL before deleting associations
     image_url = db.execute(
         text("SELECT URL FROM Images WHERE ImageID = :img"),
         {"img": link.image_id}
